@@ -1,0 +1,1 @@
+"""Smart Sales AI backend."""

@@ -39,6 +39,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      secrets:
+        - source: nexus_netrc
+          target: nexus_netrc
     restart: unless-stopped
     env_file: .env
     environment:
@@ -76,3 +79,6 @@ volumes:
 networks:
   private:
     driver: bridge
+secrets:
+  nexus_netrc:
+    file: ./.secrets/nexus.netrc
