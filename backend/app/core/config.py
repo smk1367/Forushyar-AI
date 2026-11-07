@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     app_name: str = "Smart Sales AI API"
-    app_version: str = "0.1.0"
+    app_version: str = "0.2.0"
     api_key: str = Field(min_length=24)
     database_url: str
     redis_url: str = "redis://redis:6379/0"
