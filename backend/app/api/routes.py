@@ -257,3 +257,12 @@ async def get_inventory(sku: str, session: AsyncSession = Depends(get_db)):
         for balance, product, warehouse in rows
     ]
 
+
+# Release 0.3.0: CRM, product pricing and text assistant routes.
+from app.api.assistant import router as assistant_router
+from app.api.crm import router as crm_router
+from app.api.prices import router as prices_router
+
+router.include_router(crm_router)
+router.include_router(prices_router)
+router.include_router(assistant_router)
