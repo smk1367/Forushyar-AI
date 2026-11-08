@@ -126,6 +126,8 @@ async def request_llm(messages: list[dict[str, str]]) -> str:
         "model": settings.llm_model,
         "messages": messages,
         "temperature": 0.25,
+        "max_tokens": settings.llm_max_tokens,
+        "reasoning_effort": "none",
     }
     async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
         response = await client.post(endpoint, headers=headers, json=payload)

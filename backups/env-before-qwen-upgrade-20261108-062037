@@ -1,0 +1,16 @@
+# Development values only. Replace every secret before any shared/staging/production deployment.
+APP_ENV=development
+APP_PORT=8000
+API_KEY=local_dev_key_change_me_32_chars_minimum_123
+
+POSTGRES_DB=smart_sales
+POSTGRES_USER=smart_sales
+POSTGRES_PASSWORD=replace_with_a_long_random_password
+DATABASE_URL=postgresql+asyncpg://smart_sales:replace_with_a_long_random_password@db:5432/smart_sales
+REDIS_URL=redis://redis:6379/0
+CORS_ORIGINS=["http://localhost:3000"]
+
+LLM_BASE_URL=http://ollama:11434/v1
+LLM_MODEL=qwen3:0.6b
+LLM_TIMEOUT_SECONDS=180
+LLM_API_KEY=

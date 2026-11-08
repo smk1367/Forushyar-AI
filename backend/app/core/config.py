@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_model: str | None = None
     llm_timeout_seconds: float = Field(default=45.0, ge=5.0, le=180.0)
+    llm_max_tokens: int = Field(default=160, ge=32, le=512)
     assistant_history_limit: int = Field(default=12, ge=2, le=40)
 
     @field_validator("app_env")
