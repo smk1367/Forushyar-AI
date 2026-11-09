@@ -104,6 +104,41 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  speech:
+    build:
+      context: ./speech
+      dockerfile: Dockerfile
+      secrets:
+        - source: nexus_netrc
+          target: nexus_netrc
+    restart: unless-stopped
+    environment:
+      MODEL_NAME: "small"
+      MODEL_DIR: "/models"
+      COMPUTE_TYPE: "int8"
+      CPU_THREADS: "2"
+      HF_HOME: "/models/huggingface"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    volumes:
+      - ./speech/models:/models
+    ports:
+      - "127.0.0.1:8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [private]
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+
 volumes:
   postgres_data:
   redis_data:

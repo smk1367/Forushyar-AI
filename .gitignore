@@ -1,1 +1,26 @@
+# Archive files
+/forushyar-ai-text-v0.3.0.tar.gz
+/forushyar-inventory-v0.2.0.tar.gz
+
+# Docker images archive
+/forushyar-images.tar.gz.secrets/
 .secrets/
+/forushyar-images.tar.gz
+/docker-compose.yml.bak-*
+/speech/tests/voice-test.mp3
+/speech/tests/voice-test1.mp3
+# Downloaded AI models
+/speech/models/
+
+# Test audio recordings
+/speech/tests/voice-test.mp3
+/speech/tests/voice-test1.mp3
+
+# Large archives
+/forushyar-ai-text-v0.3.0.tar.gz
+/forushyar-inventory-v0.2.0.tar.gz
+/forushyar-images.tar.gz
+
+# Backup files
+/docker-compose.yml.bak-*
+*.bak-*
