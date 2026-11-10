@@ -15,10 +15,9 @@ RUN groupadd --system --gid 10001 app \
 COPY requirements.txt ./requirements.txt
 
 # Install Python dependencies through internal Nexus
-RUN --mount=type=secret,id=nexus_netrc,target=/root/.netrc,required=true \
-    pip install --no-cache-dir \
-    --index-url http://192.168.88.18:8081/repository/pypi-aliyun/simple/ \
-    --trusted-host 192.168.88.18 \
+
+RUN python -m pip install --no-cache-dir \
+    --index-url https://mirror2.chabokan.net/pypi/simple/ \
     -r requirements.txt
 
 COPY --chown=app:app app ./app

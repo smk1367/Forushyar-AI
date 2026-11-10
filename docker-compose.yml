@@ -39,9 +39,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      secrets:
-        - source: nexus_netrc
-          target: nexus_netrc
+#      secrets:
+#        - source: nexus_netrc
+#          target: nexus_netrc
     restart: unless-stopped
     env_file: .env
     environment:
@@ -113,10 +113,10 @@ services:
           target: nexus_netrc
     restart: unless-stopped
     environment:
-      MODEL_NAME: "small"
+      MODEL_NAME: "large-v3-turbo"
       MODEL_DIR: "/models"
       COMPUTE_TYPE: "int8"
-      CPU_THREADS: "2"
+      CPU_THREADS: "6"
       HF_HOME: "/models/huggingface"
       HF_HUB_DISABLE_TELEMETRY: "1"
     volumes:

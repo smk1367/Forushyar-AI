@@ -19,12 +19,11 @@ RUN groupadd --system --gid 10001 speech \
 
 COPY requirements.txt ./requirements.txt
 
-RUN --mount=type=secret,id=nexus_netrc,target=/root/.netrc,required=true \
-    pip install --no-cache-dir \
-    --index-url http://192.168.88.18:8081/repository/pypi-aliyun/simple/ \
-    --trusted-host 192.168.88.18 \
+RUN python -m pip install --no-cache-dir \
+    --timeout 120 \
+    --retries 10 \
+    --index-url https://mirror2.chabokan.net/pypi/simple/ \
     -r requirements.txt
-
 COPY --chown=speech:speech app ./app
 
 USER 10001:10001
