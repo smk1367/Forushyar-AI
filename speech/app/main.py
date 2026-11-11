@@ -5,6 +5,7 @@ from pathlib import Path
 
 from faster_whisper import WhisperModel
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from app.tts import router as tts_router
 
 MODEL_NAME = os.getenv("MODEL_NAME", "base")
 MODEL_DIR = Path(os.getenv("MODEL_DIR", "/models"))
@@ -147,3 +148,6 @@ def transcribe_audio(
             os.unlink(temp_path)
 
         audio.file.close()
+
+
+app.include_router(tts_router)
