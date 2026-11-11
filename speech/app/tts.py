@@ -47,6 +47,10 @@ def get_voice():
     return _voice
 
 
+def is_voice_loaded() -> bool:
+    return _voice is not None
+
+
 @router.get("/v1/audio/speech/health")
 def speech_health():
     return {

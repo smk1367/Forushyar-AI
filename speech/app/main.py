@@ -1,3 +1,4 @@
+import logging
 import os
 import tempfile
 import threading
@@ -5,7 +6,14 @@ from pathlib import Path
 
 from faster_whisper import WhisperModel
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from app.tts import router as tts_router
+from fastapi.responses import JSONResponse
+from app.tts import (
+    get_voice,
+    is_voice_loaded,
+    router as tts_router,
+)
+
+logger = logging.getLogger(__name__)
 
 MODEL_NAME = os.getenv("MODEL_NAME", "base")
 MODEL_DIR = Path(os.getenv("MODEL_DIR", "/models"))
@@ -42,8 +50,25 @@ def get_model():
     return _model
 
 
+@app.on_event("startup")
+def preload_models():
+    # Preload both engines before advertising the service as ready.
+    # A failed preload is logged but does not prevent liveness or later
+    # lazy-load retries when an actual request arrives.
+    for engine_name, loader in (
+        ("whisper", get_model),
+        ("piper", get_voice),
+    ):
+        try:
+            loader()
+            logger.info("%s model preloaded successfully", engine_name)
+        except Exception:
+            logger.exception("Could not preload %s model", engine_name)
+
+
 @app.get("/health")
-def health():
+@app.get("/health/live")
+def health_live():
     return {
         "status": "alive",
         "model": MODEL_NAME,
@@ -51,6 +76,33 @@ def health():
         "device": "cpu",
         "compute_type": COMPUTE_TYPE,
     }
+
+
+@app.get("/health/ready")
+def health_ready():
+    whisper_ready = _model is not None
+    piper_ready = is_voice_loaded()
+    ready = whisper_ready and piper_ready
+
+    payload = {
+        "status": "ready" if ready else "not_ready",
+        "checks": {
+            "whisper": {
+                "ready": whisper_ready,
+                "model": MODEL_NAME,
+            },
+            "piper": {
+                "ready": piper_ready,
+            },
+        },
+        "device": "cpu",
+        "compute_type": COMPUTE_TYPE,
+    }
+
+    if not ready:
+        return JSONResponse(status_code=503, content=payload)
+
+    return payload
 
 
 @app.post("/v1/audio/transcriptions")

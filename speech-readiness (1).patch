@@ -1,0 +1,116 @@
+diff --git a/speech/app/tts.py b/speech/app/tts.py
+--- a/speech/app/tts.py
++++ b/speech/app/tts.py
+@@ -43,7 +43,11 @@ def get_voice():
+ 
+     return _voice
+ 
+ 
++def is_voice_loaded() -> bool:
++    return _voice is not None
++
++
+ @router.get("/v1/audio/speech/health")
+ def speech_health():
+     return {
+diff --git a/speech/app/main.py b/speech/app/main.py
+--- a/speech/app/main.py
++++ b/speech/app/main.py
+@@ -1,11 +1,19 @@
++import logging
+ import os
+ import tempfile
+ import threading
+ from pathlib import Path
+ 
+ from faster_whisper import WhisperModel
+ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+-from app.tts import router as tts_router
++from fastapi.responses import JSONResponse
++from app.tts import (
++    get_voice,
++    is_voice_loaded,
++    router as tts_router,
++)
++
++logger = logging.getLogger(__name__)
+ 
+ MODEL_NAME = os.getenv("MODEL_NAME", "base")
+ MODEL_DIR = Path(os.getenv("MODEL_DIR", "/models"))
+@@ -41,8 +49,25 @@ def get_model():
+     return _model
+ 
+ 
++@app.on_event("startup")
++def preload_models():
++    # Preload both engines before advertising the service as ready.
++    # A failed preload is logged but does not prevent liveness or later
++    # lazy-load retries when an actual request arrives.
++    for engine_name, loader in (
++        ("whisper", get_model),
++        ("piper", get_voice),
++    ):
++        try:
++            loader()
++            logger.info("%s model preloaded successfully", engine_name)
++        except Exception:
++            logger.exception("Could not preload %s model", engine_name)
++
++
+ @app.get("/health")
+-def health():
++@app.get("/health/live")
++def health_live():
+     return {
+         "status": "alive",
+         "model": MODEL_NAME,
+@@ -52,6 +77,33 @@ def health_live():
+     }
+ 
+ 
++@app.get("/health/ready")
++def health_ready():
++    whisper_ready = _model is not None
++    piper_ready = is_voice_loaded()
++    ready = whisper_ready and piper_ready
++
++    payload = {
++        "status": "ready" if ready else "not_ready",
++        "checks": {
++            "whisper": {
++                "ready": whisper_ready,
++                "model": MODEL_NAME,
++            },
++            "piper": {
++                "ready": piper_ready,
++            },
++        },
++        "device": "cpu",
++        "compute_type": COMPUTE_TYPE,
++    }
++
++    if not ready:
++        return JSONResponse(status_code=503, content=payload)
++
++    return payload
++
++
+ @app.post("/v1/audio/transcriptions")
+ def transcribe_audio(
+     audio: UploadFile = File(...),
+diff --git a/docker-compose.yml b/docker-compose.yml
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -125,9 +125,9 @@ services:
+       - "127.0.0.1:8001:8001"
+     healthcheck:
+-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)"]
++      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/ready', timeout=10)"]
+       interval: 15s
+-      timeout: 5s
++      timeout: 12s
+       retries: 5
+-      start_period: 20s
++      start_period: 5m
+     networks: [private]
+     init: true
