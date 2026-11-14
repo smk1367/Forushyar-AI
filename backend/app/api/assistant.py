@@ -12,7 +12,12 @@ from app.db.session import get_db
 from app.models.conversation import Conversation, ConversationMessage
 from app.models.customer import Customer
 from app.schemas import AssistantChatRequest, AssistantChatResponse, AssistantStatusRead
-from app.services.assistant import build_catalog_context, build_llm_messages, request_llm
+from app.services.assistant import (
+    build_catalog_context,
+    build_grounded_catalog_reply,
+    build_llm_messages,
+    request_llm,
+)
 
 router = APIRouter(prefix="/assistant", tags=["AI assistant"], dependencies=[Depends(require_api_key)])
 
@@ -29,12 +34,6 @@ async def assistant_status():
 
 @router.post("/chat", response_model=AssistantChatResponse)
 async def assistant_chat(payload: AssistantChatRequest, session: AsyncSession = Depends(get_db)):
-    if not settings.llm_is_configured:
-        raise HTTPException(
-            status_code=503,
-            detail="موتور هوش مصنوعی هنوز پیکربندی نشده است؛ ابتدا LLM_BASE_URL و LLM_MODEL را تنظیم کنید.",
-        )
-
     conversation: Conversation | None
     if payload.conversation_id:
         conversation = await session.get(Conversation, payload.conversation_id)
@@ -63,20 +62,31 @@ async def assistant_chat(payload: AssistantChatRequest, session: AsyncSession = 
     history_rows.reverse()
     history = [{"role": row.role, "content": row.content} for row in history_rows if row.role in {"user", "assistant"}]
 
-    _, catalog_json = await build_catalog_context(session, payload.message)
-    await session.rollback()  # release the DB transaction before making the external LLM request
+    catalog_facts, catalog_json = await build_catalog_context(session, payload.message)
+    await session.rollback()  # release the DB transaction before any external LLM request
 
-    messages = build_llm_messages(history, payload.message, catalog_json)
-    try:
-        reply = await request_llm(messages)
-    except httpx.TimeoutException as exc:
-        raise HTTPException(status_code=504, detail="پاسخ‌گویی هوش مصنوعی بیش از زمان مجاز طول کشید") from exc
-    except httpx.HTTPStatusError as exc:
-        raise HTTPException(status_code=502, detail=f"سرویس مدل زبانی خطای HTTP {exc.response.status_code} برگرداند") from exc
-    except (httpx.HTTPError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail="ارتباط با سرویس مدل زبانی ناموفق بود") from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail="موتور هوش مصنوعی پیکربندی نشده است") from exc
+    # Price and inventory facts must be stated deterministically from database
+    # records. Do not let a small language model reinterpret a missing balance
+    # as a physical stock value of zero.
+    reply = build_grounded_catalog_reply(payload.message, catalog_facts)
+    reply_source = "database-grounded" if reply is not None else (settings.llm_model or "openai-compatible")
+    if reply is None:
+        if not settings.llm_is_configured:
+            raise HTTPException(
+                status_code=503,
+                detail="موتور هوش مصنوعی هنوز پیکربندی نشده است؛ ابتدا LLM_BASE_URL و LLM_MODEL را تنظیم کنید.",
+            )
+        messages = build_llm_messages(history, payload.message, catalog_json)
+        try:
+            reply = await request_llm(messages)
+        except httpx.TimeoutException as exc:
+            raise HTTPException(status_code=504, detail="پاسخ‌گویی هوش مصنوعی بیش از زمان مجاز طول کشید") from exc
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(status_code=502, detail=f"سرویس مدل زبانی خطای HTTP {exc.response.status_code} برگرداند") from exc
+        except (httpx.HTTPError, ValueError) as exc:
+            raise HTTPException(status_code=502, detail="ارتباط با سرویس مدل زبانی ناموفق بود") from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail="موتور هوش مصنوعی پیکربندی نشده است") from exc
 
     now = datetime.now(timezone.utc)
     conversation = await session.get(Conversation, conversation_id)
@@ -92,8 +102,8 @@ async def assistant_chat(payload: AssistantChatRequest, session: AsyncSession = 
         conversation_id=conversation_id,
         role="assistant",
         content=reply,
-        provider="openai-compatible",
-        model=settings.llm_model,
+        provider="database" if reply_source == "database-grounded" else "openai-compatible",
+        model=reply_source,
     )
     session.add_all([user_record, assistant_record])
     conversation.last_message_at = now
@@ -116,6 +126,6 @@ async def assistant_chat(payload: AssistantChatRequest, session: AsyncSession = 
         user_message_id=user_record.id,
         assistant_message_id=assistant_record.id,
         reply=reply,
-        model=settings.llm_model or "",
+        model=reply_source,
         grounded_product_skus=grounded_skus,
     )

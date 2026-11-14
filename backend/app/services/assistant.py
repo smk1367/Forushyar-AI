@@ -1,5 +1,6 @@
 import json
 import re
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
@@ -156,3 +157,84 @@ def build_llm_messages(
 ) -> list[dict[str, str]]:
     system = PERSIAN_SYSTEM_PROMPT + "\n\nداده‌های سامانه برای این پرسش:\n" + catalog_json
     return [{"role": "system", "content": system}, *history, {"role": "user", "content": user_message}]
+
+_STOCK_QUERY_MARKERS = (
+    "موجودی", "موجود", "انبار", "قابل فروش", "رزرو",
+    "stock", "inventory",
+)
+_PRICE_QUERY_MARKERS = ("قیمت", "بها", "مبلغ", "price")
+_PERSIAN_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+
+
+def _format_grounded_number(value: Any) -> str:
+    """Format a numeric database fact without changing its value."""
+    try:
+        number = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return str(value)
+
+    rendered = format(number, ",f")
+    if "." in rendered:
+        rendered = rendered.rstrip("0").rstrip(".")
+    return rendered.replace(",", "٬").translate(_PERSIAN_DIGITS)
+
+
+def build_grounded_catalog_reply(user_message: str, facts: list[dict[str, Any]]) -> str | None:
+    """Answer price/stock questions from DB facts, not probabilistic LLM output.
+
+    Returns None for general questions so the normal conversational model can
+    handle them. For factual catalog questions, every numeric claim is rendered
+    from retrieved DB values; a missing balance is explicitly unknown, not zero.
+    """
+    normalized = user_message.casefold()
+    asks_stock = any(marker in normalized for marker in _STOCK_QUERY_MARKERS)
+    asks_price = any(marker in normalized for marker in _PRICE_QUERY_MARKERS)
+    if not asks_stock and not asks_price:
+        return None
+
+    if not facts:
+        return "در داده‌های فعلی سامانه کالای منطبقی پیدا نشد. لطفاً کد کالا یا نام دقیق‌تر را بفرستید."
+
+    lines: list[str] = []
+    for product in facts:
+        sku = str(product.get("sku", "نامشخص"))
+        name = str(product.get("name") or "بدون نام")
+        unit = str(product.get("unit") or "")
+        lines.append(f"کالای «{name}» (کد {sku}):")
+
+        if asks_price:
+            price = product.get("price")
+            if not price:
+                lines.append("قیمت این کالا هنوز در سامانه ثبت نشده است.")
+            else:
+                amount = _format_grounded_number(price.get("amount", "نامشخص"))
+                currency_code = str(price.get("currency_code") or "").upper()
+                currency = {"IRT": "تومان", "IRR": "ریال"}.get(
+                    currency_code, f"واحد پول {currency_code}" if currency_code else ""
+                )
+                lines.append(f"قیمت ثبت‌شده: {amount} {currency}.".strip())
+
+        if asks_stock:
+            stock_rows = product.get("stock_by_warehouse") or []
+            if not stock_rows:
+                lines.append("اطلاعات انبار برای این کالا در سامانه موجود نیست؛ مقدار موجودی نامشخص است.")
+            else:
+                for stock in stock_rows:
+                    warehouse = str(stock.get("warehouse") or stock.get("warehouse_code") or "انبار نامشخص")
+                    if stock.get("status") == "NO_STOCK_RECORD":
+                        lines.append(
+                            f"- {warehouse}: رکورد موجودی ثبت نشده است؛ مقدار واقعی نامشخص است و صفر فرض نمی‌شود."
+                        )
+                        continue
+
+                    on_hand = _format_grounded_number(stock.get("on_hand", "نامشخص"))
+                    reserved = _format_grounded_number(stock.get("reserved", "نامشخص"))
+                    available = _format_grounded_number(stock.get("available", "نامشخص"))
+                    unit_suffix = f" {unit}" if unit else ""
+                    lines.append(
+                        f"- {warehouse}: موجودی فیزیکی {on_hand}، رزروشده {reserved}، "
+                        f"قابل فروش {available}{unit_suffix}."
+                    )
+
+    return "\n".join(lines)
+
