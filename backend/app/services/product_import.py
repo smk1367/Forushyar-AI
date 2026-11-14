@@ -155,6 +155,8 @@ def validate_product_import_rows(rows, existing_skus: set[str], warehouse_status
                 if not row.get("warehouse_code") or row.get("opening_quantity") is None:
                     row["errors"].append("برای SKU تکراری، هر ردیف باید انبار و موجودی مستقل داشته باشد")
         for row in group:
+            if row.get("sku") != first.get("sku"):
+                row["errors"].append("کد کالای تکراری باید با حروف یکسان نوشته شود")
             for field, label in (("name", "نام"), ("description", "توضیحات"), ("unit", "واحد"), ("price_toman", "قیمت")):
                 if row.get(field) != first.get(field):
                     row["errors"].append(f"{label} ردیف‌های یک کالا باید یکسان باشد")
