@@ -1,3 +1,4 @@
+
 # syntax=docker/dockerfile:1
 
 FROM python:3.13-slim-trixie
@@ -13,15 +14,15 @@ RUN groupadd --system --gid 10001 app \
 
 COPY requirements.txt ./requirements.txt
 
-# The build argument may be overridden with a reachable PyPI mirror.
-# Fall back when Compose or the CLI passes an empty build argument.
+# Install Python dependencies through internal Nexus
 ARG PIP_INDEX_URL=https://pypi.org/simple/
 
-RUN index_url="${PIP_INDEX_URL:-https://pypi.org/simple/}" \
-    && python -m pip install --no-cache-dir --retries 5 --timeout 60 \
-       --index-url "${index_url}" \
-       -r requirements.txt
-
+RUN python -m pip install \
+    --no-cache-dir \
+    --retries 5 \
+    --timeout 60 \
+    --index-url "${PIP_INDEX_URL}" \
+    -r requirements.txt
 COPY --chown=app:app app ./app
 COPY --chown=app:app alembic ./alembic
 COPY --chown=app:app alembic.ini ./alembic.ini
