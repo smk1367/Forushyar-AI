@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>ورود کالا | فروش‌یار</title>
+  <style>
+    :root { font-family: Tahoma, "Segoe UI", sans-serif; color: #172033; background: #f4f6fa; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 28px 16px 48px; }
+    .page { max-width: 900px; margin: 0 auto; }
+    header { margin-bottom: 22px; }
+    h1 { margin: 0 0 8px; font-size: 26px; }
+    .muted { color: #64748b; line-height: 1.9; font-size: 14px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 22px; margin: 16px 0; box-shadow: 0 5px 20px rgba(15,23,42,.04); }
+    h2 { margin: 0 0 18px; font-size: 18px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+    .field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+    .full { grid-column: 1 / -1; }
+    label { font-size: 13px; font-weight: 700; }
+    input, select, textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 11px 12px; background: #fff; color: #172033; font: inherit; font-size: 14px; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: #64748b; box-shadow: 0 0 0 3px rgba(100,116,139,.13); }
+    textarea { resize: vertical; min-height: 76px; }
+    .row { display: flex; gap: 10px; align-items: end; }
+    .row .field { flex: 1; }
+    button { border: 0; border-radius: 8px; padding: 11px 16px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; background: #1e293b; color: #fff; }
+    button.secondary { background: #e2e8f0; color: #1e293b; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .actions { display: flex; gap: 10px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
+    .hint { color: #64748b; font-size: 12px; line-height: 1.8; }
+    .status { margin-top: 12px; font-size: 13px; line-height: 1.9; white-space: pre-wrap; }
+    .status.success { color: #166534; }
+    .status.error { color: #b91c1c; }
+    .result { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 9px; padding: 14px; margin-top: 14px; line-height: 2; white-space: pre-line; display: none; }
+    .subpanel { background: #f8fafc; border: 1px dashed #cbd5e1; padding: 15px; border-radius: 10px; margin-top: 12px; }
+    .subpanel[hidden] { display: none; }
+    .badge { display: inline-block; border-radius: 20px; padding: 3px 9px; background: #e2e8f0; font-size: 12px; margin-right: 5px; }
+    @media (max-width: 640px) { body { padding: 18px 10px; } .card { padding: 16px; } .grid { grid-template-columns: 1fr; } .full { grid-column: auto; } .row { align-items: stretch; flex-direction: column; } h1 { font-size: 22px; } }
+  </style>
+</head>
+<body>
+<main class="page">
+  <header>
+    <h1>ورود کالا به فروش‌یار</h1>
+    <div class="muted">ثبت مشخصات کالا، قیمت روز و در صورت داشتن شمارش واقعی، موجودی اولیه انبار.</div>
+  </header>
+
+  <section class="card">
+    <h2>۱. اتصال به سامانه</h2>
+    <div class="row">
+      <div class="field">
+        <label for="apiKey">کلید API</label>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="کلید API موجود در فایل .env">
+      </div>
+      <button id="connectBtn" type="button">اتصال و دریافت انبارها</button>
+    </div>
+    <div class="hint">کلید فقط در sessionStorage همین تب مرورگر نگهداری می‌شود و با بسته‌شدن تب پاک می‌شود.</div>
+    <div id="connectionStatus" class="status"></div>
+  </section>
+
+  <section class="card">
+    <h2>۲. مشخصات کالا و قیمت</h2>
+    <div class="hint" style="margin:-8px 0 16px">هر وزن یا تعداد ستون متفاوت را به‌عنوان یک قلم مستقل و با کد کالای جدا ثبت کنید. فرم با نمونه‌ای که فرستادید پر شده و قابل ویرایش است.</div>
+    <form id="productForm">
+      <div class="grid">
+        <div class="field">
+          <label for="sku">کد کالا (SKU) *</label>
+          <input id="sku" required maxlength="80" value="580" placeholder="مثلاً 580">
+        </div>
+        <div class="field">
+          <label for="name">نام کالا *</label>
+          <input id="name" required maxlength="240" value="رابیتس ۹ ستون" placeholder="مثلاً رابیتس ۱۳ ستون">
+        </div>
+        <div class="field">
+          <label for="unit">واحد / وزن فروش *</label>
+          <input id="unit" required maxlength="24" value="۴۰۰ گرم" placeholder="مثلاً ۶۶۰ گرم">
+        </div>
+        <div class="field">
+          <label for="price">قیمت روز (تومان)</label>
+          <input id="price" type="number" min="0" step="1" value="195000" placeholder="مثلاً 195000">
+        </div>
+        <div class="field full">
+          <label for="description">توضیحات / مشخصات</label>
+          <textarea id="description" placeholder="مشخصات تکمیلی کالا">۹ ستون، وزن ۴۰۰ گرم</textarea>
+        </div>
+      </div>
+
+      <h2 style="margin-top:24px">۳. انبار و موجودی اولیه <span class="badge">اختیاری</span></h2>
+      <div class="field">
+        <label for="warehouse">انبار</label>
+        <select id="warehouse"><option value="">ابتدا کلید API را وارد و انبارها را دریافت کنید</option></select>
+        <div class="hint">برای ثبت موجودی اولیه، انبار و تعداد واقعی را با هم انتخاب کنید. اگر تعداد را خالی بگذارید، موجودی برای این کالا ثبت نمی‌شود.</div>
+      </div>
+      <div class="field" style="margin-top:13px">
+        <label for="quantity">موجودی اولیه (تعداد / واحد کالا)</label>
+        <input id="quantity" type="number" min="0" step="0.001" placeholder="مثلاً 250 — در صورت نامشخص بودن خالی بگذارید">
+      </div>
+      <div class="actions">
+        <button id="addWarehouseToggle" class="secondary" type="button">+ افزودن انبار جدید</button>
+        <button id="saveBtn" type="submit">ثبت کالا و قیمت</button>
+      </div>
+      <div id="result" class="result"></div>
+      <div id="formStatus" class="status"></div>
+    </form>
+
+    <div id="newWarehousePanel" class="subpanel" hidden>
+      <h2 style="margin-bottom:12px">افزودن انبار</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="warehouseCode">کد انبار *</label>
+          <input id="warehouseCode" maxlength="40" placeholder="مثلاً TEH-AHAN-MEKAN">
+        </div>
+        <div class="field">
+          <label for="warehouseName">نام انبار *</label>
+          <input id="warehouseName" maxlength="160" value="تهران - آهن مکان" placeholder="نام انبار">
+        </div>
+        <div class="field full">
+          <label for="branchName">شعبه (اختیاری)</label>
+          <input id="branchName" maxlength="160" placeholder="مثلاً تهران">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="createWarehouseBtn" type="button">ثبت انبار</button>
+        <button id="cancelWarehouseBtn" type="button" class="secondary">انصراف</button>
+      </div>
+      <div id="warehouseStatus" class="status"></div>
+    </div>
+  </section>
+  <div class="muted">نشانی این صفحه: <b>http://127.0.0.1:8000/admin/products</b></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const keyInput = $("apiKey");
+const warehouseSelect = $("warehouse");
+
+function setStatus(id, message, kind = "") {
+  const el = $(id);
+  el.textContent = message || "";
+  el.className = "status" + (kind ? " " + kind : "");
+}
+function apiKey() {
+  const value = keyInput.value.trim();
+  if (!value) throw new Error("ابتدا کلید API را وارد کنید.");
+  sessionStorage.setItem("forushyar_product_entry_api_key", value);
+  return value;
+}
+async function api(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  headers.set("X-API-Key", apiKey());
+  if (options.body) headers.set("Content-Type", "application/json");
+  const response = await fetch(path, { ...options, headers });
+  let data = {};
+  try { data = await response.json(); } catch (_) {}
+  if (!response.ok) {
+    const detail = data.detail;
+    const message = Array.isArray(detail) ? detail.map(x => x.msg || JSON.stringify(x)).join("؛ ") : (detail || `خطای HTTP ${response.status}`);
+    throw new Error(message);
+  }
+  return data;
+}
+async function loadWarehouses() {
+  const items = await api("/api/v1/warehouses");
+  warehouseSelect.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = items.length ? "انتخاب انبار" : "هنوز انباری ثبت نشده است";
+  warehouseSelect.append(placeholder);
+  for (const item of items) {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = `${item.name} (${item.code})`;
+    warehouseSelect.append(option);
+  }
+  return items;
+}
+
+$("connectBtn").addEventListener("click", async () => {
+  try {
+    $("connectBtn").disabled = true;
+    const items = await loadWarehouses();
+    setStatus("connectionStatus", `اتصال موفق بود؛ ${items.length} انبار دریافت شد.`, "success");
+  } catch (error) {
+    setStatus("connectionStatus", error.message, "error");
+  } finally { $("connectBtn").disabled = false; }
+});
+
+$("addWarehouseToggle").addEventListener("click", () => {
+  $("newWarehousePanel").hidden = !$("newWarehousePanel").hidden;
+});
+$("cancelWarehouseBtn").addEventListener("click", () => { $("newWarehousePanel").hidden = true; });
+
+$("createWarehouseBtn").addEventListener("click", async () => {
+  try {
+    $("createWarehouseBtn").disabled = true;
+    setStatus("warehouseStatus", "در حال ثبت انبار...");
+    const payload = {
+      code: $("warehouseCode").value.trim(),
+      name: $("warehouseName").value.trim(),
+      branch_name: $("branchName").value.trim() || null
+    };
+    const created = await api("/api/v1/warehouses", { method: "POST", body: JSON.stringify(payload) });
+    await loadWarehouses();
+    warehouseSelect.value = created.id;
+    setStatus("warehouseStatus", `انبار «${created.name}» ثبت شد و انتخاب گردید.`, "success");
+    $("newWarehousePanel").hidden = true;
+  } catch (error) {
+    setStatus("warehouseStatus", error.message, "error");
+  } finally { $("createWarehouseBtn").disabled = false; }
+});
+
+$("productForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const quantityText = $("quantity").value.trim();
+  const warehouseId = warehouseSelect.value || null;
+  if (quantityText !== "" && !warehouseId) {
+    setStatus("formStatus", "برای ثبت موجودی اولیه باید انبار را انتخاب کنید.", "error");
+    return;
+  }
+  const priceText = $("price").value.trim();
+  const payload = {
+    sku: $("sku").value.trim(),
+    name: $("name").value.trim(),
+    unit: $("unit").value.trim(),
+    description: $("description").value.trim() || null,
+    price_toman: priceText === "" ? null : priceText,
+    warehouse_id: warehouseId,
+    opening_quantity: quantityText === "" ? null : quantityText,
+    notes: null
+  };
+  try {
+    $("saveBtn").disabled = true;
+    setStatus("formStatus", "در حال ثبت کالا، قیمت و موجودی اولیه...");
+    const data = await api("/api/v1/products/entry", { method: "POST", body: JSON.stringify(payload) });
+    const lines = [
+      `کالا با موفقیت ثبت شد: ${data.product.name}`,
+      `کد کالا: ${data.product.sku}`,
+      `واحد: ${data.product.unit}`,
+      data.price ? `قیمت فعال: ${new Intl.NumberFormat("fa-IR").format(Number(data.price.amount))} تومان` : "قیمت ثبت نشد.",
+      data.inventory ? `موجودی اولیه: ${new Intl.NumberFormat("fa-IR").format(Number(data.inventory.on_hand))} ${data.product.unit} در انبار ${data.inventory.warehouse_name}` : "موجودی اولیه ثبت نشد؛ بعداً از بخش انبار قابل ثبت است."
+    ];
+    $("result").textContent = lines.join("\n");
+    $("result").style.display = "block";
+    setStatus("formStatus", "ثبت با موفقیت انجام شد.", "success");
+    $("sku").value = "";
+    $("name").value = "";
+    $("unit").value = "عدد";
+    $("description").value = "";
+    $("price").value = "";
+    $("quantity").value = "";
+    warehouseSelect.value = "";
+  } catch (error) {
+    setStatus("formStatus", error.message, "error");
+  } finally { $("saveBtn").disabled = false; }
+});
+
+const savedKey = sessionStorage.getItem("forushyar_product_entry_api_key");
+if (savedKey) {
+  keyInput.value = savedKey;
+  loadWarehouses().then(items => setStatus("connectionStatus", `اتصال برقرار شد؛ ${items.length} انبار دریافت شد.`, "success"))
+    .catch(error => setStatus("connectionStatus", error.message, "error"));
+}
+</script>
+</body>
+</html>
