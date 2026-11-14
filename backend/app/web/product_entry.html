@@ -127,7 +127,20 @@
       <div id="warehouseStatus" class="status"></div>
     </div>
   </section>
-  <div class="muted">نشانی این صفحه: <b>http://127.0.0.1:8000/admin/products</b></div>
+
+  <section class="card" id="excelImport">
+    <h2>۴. ورود گروهی کالا از Excel</h2>
+    <p class="hint">ابتدا قالب را دریافت کنید. پس از بارگذاری، پیش‌نمایش و خطاهای هر ردیف نمایش داده می‌شود. ثبت فقط پس از تأیید فایل معتبر انجام خواهد شد.</p>
+    <div class="actions">
+      <button type="button" class="secondary" id="downloadExcelTemplate">دانلود قالب Excel</button>
+      <input id="excelFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+      <button type="button" id="previewExcel">پیش‌نمایش و اعتبارسنجی</button>
+      <button type="button" id="commitExcel" disabled>تأیید و ثبت گروهی</button>
+    </div>
+    <div id="excelSummary" class="status"></div>
+    <div id="excelRows" style="overflow-x:auto"></div>
+  </section>
+\n  <div class="muted">نشانی این صفحه: <b>http://127.0.0.1:8000/admin/products</b></div>
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -260,6 +273,65 @@ if (savedKey) {
   loadWarehouses().then(items => setStatus("connectionStatus", `اتصال برقرار شد؛ ${items.length} انبار دریافت شد.`, "success"))
     .catch(error => setStatus("connectionStatus", error.message, "error"));
 }
-</script>
+
+const excelFile = $("excelFile");
+let excelPreviewHash = null;
+let excelPreviewFile = null;
+$("downloadExcelTemplate").addEventListener("click", async () => {
+  try {
+    const response = await fetch("/api/v1/products/import/template", { headers: { "X-API-Key": apiKey() } });
+    if (!response.ok) throw new Error("دریافت قالب ناموفق بود؛ اتصال و کلید API را بررسی کنید.");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a"); link.href = url; link.download = "forushyar-products-template.xlsx";
+    document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+  } catch (error) { setStatus("excelSummary", error.message, "error"); }
+});
+$("previewExcel").addEventListener("click", async () => {
+  const file = excelFile.files[0];
+  if (!file) { setStatus("excelSummary", "ابتدا فایل XLSX را انتخاب کنید.", "error"); return; }
+  const body = new FormData(); body.append("file", file);
+  try {
+    $("previewExcel").disabled = true; $("commitExcel").disabled = true;
+    setStatus("excelSummary", "در حال بررسی فایل...");
+    const response = await fetch("/api/v1/products/import/preview", { method: "POST", headers: { "X-API-Key": apiKey() }, body });
+    const data = await response.json();
+    if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : (data.detail?.message || "اعتبارسنجی فایل ناموفق بود"));
+    excelPreviewHash = data.sha256; excelPreviewFile = file;
+    const s = data.summary;
+    setStatus("excelSummary", `ردیف‌ها: ${s.rows_total} | معتبر: ${s.rows_valid} | دارای خطا: ${s.rows_invalid} | کالا: ${s.products_total} | ردیف موجودی: ${s.opening_stock_rows}`, data.valid ? "success" : "error");
+    const table = document.createElement("table");
+    table.style.cssText = "width:100%;border-collapse:collapse;margin-top:12px;font-size:13px";
+    const headers = ["ردیف","کد کالا","نام کالا","قیمت (تومان)","انبار","موجودی","نتیجه"];
+    const thead = document.createElement("tr");
+    headers.forEach(label => { const th=document.createElement("th"); th.textContent=label; th.style.cssText="padding:8px;border-bottom:1px solid #cbd5e1;text-align:right"; thead.append(th); });
+    table.append(thead);
+    data.rows.forEach(row => {
+      const tr=document.createElement("tr");
+      [row.row_number,row.sku,row.name,row.price_toman ?? "—",row.warehouse_code ?? "—",row.opening_quantity ?? "—",row.errors.length ? row.errors.join("؛ ") : "معتبر"].forEach((value,i)=>{
+        const td=document.createElement("td"); td.textContent=String(value); td.style.cssText="padding:8px;border-bottom:1px solid #e2e8f0;vertical-align:top"; if(i===6 && row.errors.length) td.style.color="#b91c1c"; tr.append(td);
+      }); table.append(tr);
+    });
+    $("excelRows").replaceChildren(table);
+    $("commitExcel").disabled = !data.valid;
+  } catch(error) { excelPreviewHash=null; excelPreviewFile=null; $("excelRows").replaceChildren(); setStatus("excelSummary",error.message,"error"); }
+  finally { $("previewExcel").disabled=false; }
+});
+excelFile.addEventListener("change", () => { excelPreviewHash=null; excelPreviewFile=null; $("commitExcel").disabled=true; $("excelRows").replaceChildren(); });
+$("commitExcel").addEventListener("click", async () => {
+  if (!excelPreviewHash || !excelPreviewFile || excelFile.files[0] !== excelPreviewFile) {
+    setStatus("excelSummary","فایل تغییر کرده است؛ دوباره پیش‌نمایش بگیرید.","error"); return;
+  }
+  const body = new FormData(); body.append("file",excelPreviewFile); body.append("preview_sha256",excelPreviewHash);
+  try {
+    $("commitExcel").disabled=true; setStatus("excelSummary","در حال ثبت اتمیک کالاها، قیمت‌ها و موجودی...");
+    const response=await fetch("/api/v1/products/import/commit",{method:"POST",headers:{"X-API-Key":apiKey()},body});
+    const data=await response.json();
+    if(!response.ok) throw new Error(typeof data.detail==="string"?data.detail:(data.detail?.message||"ثبت گروهی ناموفق بود"));
+    setStatus("excelSummary",`ثبت موفق: ${data.products_created} کالا، ${data.balances_created} موجودی، ${data.movements_created} گردش انبار. موجودی صفر بدون گردش ساختگی: ${data.zero_balances_without_movement}.`,"success");
+    excelPreviewHash=null; excelPreviewFile=null; excelFile.value=""; $("excelRows").replaceChildren();
+  } catch(error) { setStatus("excelSummary",error.message,"error"); $("commitExcel").disabled=false; }
+});
+\n</script>
 </body>
 </html>

@@ -15,11 +15,14 @@ RUN groupadd --system --gid 10001 app \
 COPY requirements.txt ./requirements.txt
 
 # Install Python dependencies through internal Nexus
+ARG PIP_INDEX_URL=https://pypi.org/simple/
 
-RUN python -m pip install --no-cache-dir \
-    --index-url https://mirror2.chabokan.net/pypi/simple/ \
+RUN python -m pip install \
+    --no-cache-dir \
+    --retries 5 \
+    --timeout 60 \
+    --index-url "${PIP_INDEX_URL}" \
     -r requirements.txt
-
 COPY --chown=app:app app ./app
 COPY --chown=app:app alembic ./alembic
 COPY --chown=app:app alembic.ini ./alembic.ini

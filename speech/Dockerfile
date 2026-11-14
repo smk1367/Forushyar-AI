@@ -18,12 +18,14 @@ RUN groupadd --system --gid 10001 speech \
     && chown -R speech:speech /app /models
 
 COPY requirements.txt ./requirements.txt
-
-RUN python -m pip install --no-cache-dir \
-    --timeout 120 \
-    --retries 10 \
-    --index-url https://mirror2.chabokan.net/pypi/simple/ \
+ARG PIP_INDEX_URL=https://pypi.org/simple/
+RUN python -m pip install \
+    --no-cache-dir \
+    --retries 5 \
+    --timeout 60 \
+    --index-url="${PIP_INDEX_URL}" \
     -r requirements.txt
+
 COPY --chown=speech:speech app ./app
 
 USER 10001:10001

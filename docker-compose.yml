@@ -39,6 +39,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      extra_hosts:
+       - "files.pythonhosted.org=151.101.0.223"
 #      secrets:
 #        - source: nexus_netrc
 #          target: nexus_netrc
@@ -108,9 +110,11 @@ services:
     build:
       context: ./speech
       dockerfile: Dockerfile
-      secrets:
-        - source: nexus_netrc
-          target: nexus_netrc
+      extra_hosts:
+       - "files.pythonhosted.org=151.101.0.223"
+#      secrets:
+#        - source: nexus_netrc
+#          target: nexus_netrc
     restart: unless-stopped
     environment:
       MODEL_NAME: "large-v3-turbo"
@@ -147,6 +151,6 @@ volumes:
 networks:
   private:
     driver: bridge
-secrets:
-  nexus_netrc:
-    file: ./.secrets/nexus.netrc
+#secrets:
+#  nexus_netrc:
+#    file: ./.secrets/nexus.netrc
