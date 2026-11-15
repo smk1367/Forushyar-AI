@@ -26,6 +26,13 @@ def test_search_term_extraction_handles_arabic_digits_and_yeh():
     assert terms == ["لوله", "5", "اینچ"]
 
 
+def test_requested_quantity_is_not_used_as_a_product_search_term():
+    assert extract_search_terms("برای ۱۰ عدد لوله موجودی دارید؟") == ["لوله"]
+    assert extract_search_terms("برای ۵ عدد لوله ۵ اینچ موجودی دارید؟") == [
+        "لوله", "5", "اینچ"
+    ]
+
+
 def test_requested_quantity_does_not_treat_product_dimensions_as_order_quantity():
     assert extract_requested_quantity("قیمت لوله ۵ اینچ چقدر است؟") is None
     assert extract_requested_quantity("برای ۱۰ عدد لوله موجودی دارید؟") == Decimal("10")
