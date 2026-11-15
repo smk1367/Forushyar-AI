@@ -299,3 +299,22 @@ def test_unknown_warehouse_is_not_counted_as_zero_when_reporting_shortage():
     assert reply is not None
     assert "مجموع موجودی قابل فروشِ ثبت‌شده ۴ شاخه" in reply
     assert "نمی‌توان کمبود قطعی کل مجموعه را اعلام کرد" in reply
+
+
+def test_low_confidence_single_candidate_asks_for_confirmation():
+    facts = [{
+        "sku": "590-A",
+        "name": "لوله فولادی 5 اینچ",
+        "match_score": 5,
+        "exact_match": False,
+        "matched_term_count": 1,
+        "query_term_count": 3,
+        "price": {"amount": "100", "currency_code": "IRT"},
+        "stock_by_warehouse": [],
+    }]
+
+    reply = build_grounded_catalog_reply("قیمت لوله ۵ اینچ چقدر است؟", facts)
+
+    assert reply is not None
+    assert "شناسایی قطعی کالا کافی نیست" in reply
+    assert "قیمت ثبت‌شده" not in reply
