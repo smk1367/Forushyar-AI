@@ -50,8 +50,8 @@ _TEXT_TRANSLATION = str.maketrans({
     "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
 })
 _DIACRITICS_RE = re.compile(r"[\u064B-\u065F\u0670]")
-_DB_TRANSLATE_FROM = "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹يكەى"
-_DB_TRANSLATE_TO = "01234567890123456789یکەی"
+_DB_TRANSLATE_FROM = "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹يكى"
+_DB_TRANSLATE_TO = "01234567890123456789یکی"
 
 
 _STOCK_QUERY_MARKERS = (
