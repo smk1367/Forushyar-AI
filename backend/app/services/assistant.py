@@ -68,7 +68,8 @@ def normalize_search_text(value: str) -> str:
     value = value.translate(_TEXT_TRANSLATION)
     value = _DIACRITICS_RE.sub("", value)
     value = value.replace("\u200c", " ").replace("\u200f", " ")
-    value = re.sub(r"[^\w-]+", " ", value, flags=re.UNICODE)
+    value = re.sub(r"(?<=\d)[,٫](?=\d)", ".", value)
+    value = re.sub(r"[^\w.-]+", " ", value, flags=re.UNICODE)
     return " ".join(value.casefold().split())
 
 
@@ -94,7 +95,7 @@ def extract_requested_quantity(message: str) -> Decimal | None:
         r"متر|سانتی متر|سانتیمتر|لیتر)"
     )
     patterns = (
-        rf"(?:برای|تعداد|به مقدار|به میزان|حدود|حداقل|میخوام|میخواهم|"
+        rf"(?:برای|تعداد|به مقدار|به میزان|میخوام|میخواهم|"
         rf"نیاز دارم|لازم دارم|سفارش)\s*{number}(?:\s*{count_units})?",
         rf"{number}\s*{count_units}",
     )
@@ -112,10 +113,23 @@ def extract_requested_quantity(message: str) -> Decimal | None:
 
 def extract_search_terms(message: str) -> list[str]:
     normalized = normalize_search_text(message)
-    parts = re.findall(r"[\w-]+", normalized, flags=re.UNICODE)
+    parts = re.findall(r"\d+(?:\.\d+)?|[\w-]+", normalized, flags=re.UNICODE)
+    requested_quantity = extract_requested_quantity(message)
+    quantity_token_skipped = False
     unique: list[str] = []
     for part in parts:
         token = part.strip("_- ")
+        if (
+            requested_quantity is not None
+            and not quantity_token_skipped
+            and re.fullmatch(r"\d+(?:\.\d+)?", token)
+        ):
+            try:
+                if Decimal(token) == requested_quantity:
+                    quantity_token_skipped = True
+                    continue
+            except InvalidOperation:
+                pass
         if len(token) >= 2 and token not in _STOP_WORDS and token not in unique:
             unique.append(token)
     return unique[:8]
