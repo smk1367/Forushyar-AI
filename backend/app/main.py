@@ -8,6 +8,7 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 
 from app.api.product_entry import api_router as product_entry_api_router, web_router as product_entry_web_router
+from app.api.product_import import api_router as product_import_api_router
 from app.api.routes import router
 from app.core.config import settings
 from app.db.session import engine
@@ -73,4 +74,5 @@ async def ready():
 
 app.include_router(router)
 app.include_router(product_entry_api_router)
+app.include_router(product_import_api_router)
 app.include_router(product_entry_web_router)
