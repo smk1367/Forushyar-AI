@@ -33,7 +33,7 @@ PERSIAN_SYSTEM_PROMPT = """شما فروشنده و راهنمای پشتیبا�
 _STOP_WORDS = {
     "سلام", "لطفا", "ممنون", "مرسی", "قیمت", "بها", "مبلغ", "موجودی", "موجود",
     "دارید", "دارین", "داری", "هست", "هستش", "است", "برای", "میخواهم", "میخوام",
-    "میخواستم", "چقدر", "چند", "از", "به", "در", "با", "را", "این", "اون", "آن",
+    "میخواستم", "می", "حدود", "تقریبا", "چقدر", "چند", "از", "به", "در", "با", "را", "این", "اون", "آن",
     "یک", "یه", "محصول", "کالا", "کالای", "بفرمایید", "بگید", "بگو", "کنید",
     "کنین", "میباشد", "فرمایید", "میفرمایید", "انبار", "انبارها", "قابل", "فروش", "رزرو", "تعداد",
     "عدد", "قطعه", "دستگاه", "شاخه", "بسته", "کارتن", "لطفا",
@@ -130,7 +130,8 @@ def extract_search_terms(message: str) -> list[str]:
                     continue
             except InvalidOperation:
                 pass
-        if len(token) >= 2 and token not in _STOP_WORDS and token not in unique:
+        is_numeric = re.fullmatch(r"\d+(?:\.\d+)?", token) is not None
+        if (len(token) >= 2 or is_numeric) and token not in _STOP_WORDS and token not in unique:
             unique.append(token)
     return unique[:8]
 
