@@ -138,18 +138,28 @@ async def build_catalog_context(
     # carry more weight than short numeric fragments such as a size or gauge.
     score_expr = case((exact_sku, 1000), (exact_name, 1000), else_=0)
     filters = []
+    matched_term_expressions = []
     for term in terms:
         pattern = f"%{term}%"
-        filters.extend([sku_expr.ilike(pattern), name_expr.ilike(pattern)])
+        name_match = name_expr.ilike(pattern)
+        sku_match = sku_expr.ilike(pattern)
+        filters.extend([sku_match, name_match])
+        matched_term_expressions.append(case((or_(name_match, sku_match), 1), else_=0))
         weight = 5 if not term.isdigit() else 2
         score_expr = (
             score_expr
-            + case((name_expr.ilike(pattern), weight), else_=0)
-            + case((sku_expr.ilike(pattern), weight + 1), else_=0)
+            + case((name_match, weight), else_=0)
+            + case((sku_match, weight + 1), else_=0)
         )
 
+    matched_term_count_expr = sum(matched_term_expressions)
     stmt = (
-        select(Product, score_expr.label("match_score"), (exact_sku | exact_name).label("exact_match"))
+        select(
+            Product,
+            score_expr.label("match_score"),
+            (exact_sku | exact_name).label("exact_match"),
+            matched_term_count_expr.label("matched_term_count"),
+        )
         .where(Product.is_active.is_(True), or_(*filters))
         .order_by(score_expr.desc(), Product.sku)
         .limit(8)
@@ -164,7 +174,7 @@ async def build_catalog_context(
 
     now = datetime.now(timezone.utc)
     facts: list[dict[str, Any]] = []
-    for product, match_score, exact_match in rows:
+    for product, match_score, exact_match, matched_term_count in rows:
         balance_rows = (await session.execute(
             select(InventoryBalance.warehouse_id, InventoryBalance.on_hand, InventoryBalance.reserved)
             .where(InventoryBalance.product_id == product.id)
@@ -209,6 +219,8 @@ async def build_catalog_context(
             "unit": product.unit,
             "match_score": int(match_score or 0),
             "exact_match": bool(exact_match),
+            "matched_term_count": int(matched_term_count or 0),
+            "query_term_count": len(terms),
             "price": (
                 {"amount": str(price.amount), "currency_code": price.currency_code}
                 if price else None
@@ -308,7 +320,13 @@ def _select_unambiguous_product(
     ]
     if len(top) > 1:
         return None, top
-    return top[0], []
+
+    best = top[0]
+    query_term_count = int(best.get("query_term_count") or 0)
+    matched_term_count = int(best.get("matched_term_count") or 0)
+    if not best_exact and query_term_count >= 2 and matched_term_count < 2:
+        return None, [best]
+    return best, []
 
 
 def build_grounded_catalog_reply(
@@ -332,6 +350,13 @@ def build_grounded_catalog_reply(
 
     product, ambiguous = _select_unambiguous_product(facts)
     if ambiguous:
+        if len(ambiguous) == 1:
+            candidate = ambiguous[0]
+            return (
+                f"عبارت واردشده برای شناسایی قطعی کالا کافی نیست. نزدیک‌ترین مورد "
+                f"«{candidate.get('name') or 'بدون نام'}» (کد {candidate.get('sku') or 'نامشخص'}) است. "
+                "لطفاً کد یا نام کامل کالا را تأیید کنید؛ تا پیش از تأیید، قیمت یا موجودی اعلام نمی‌کنم."
+            )
         options = [
             f"«{item.get('name') or 'بدون نام'}» (کد {item.get('sku') or 'نامشخص'})"
             for item in ambiguous[:5]
