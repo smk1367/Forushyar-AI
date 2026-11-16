@@ -21,7 +21,7 @@ from app.main import app
 from app.models.inventory import InventoryBalance, StockMovement, StockReservation
 from app.models.product import Product
 from app.models.product_price import ProductPrice
-from app.models.sales_order import SalesOrder
+from app.models.sales_order import SalesOrder, SalesOrderEvent, SalesOrderLine
 from app.models.warehouse import Warehouse
 from app.schemas import SalesOrderCreate
 from app.services.sales_orders import create_sales_order
@@ -230,8 +230,8 @@ def test_order_snapshot_multiwarehouse_idempotency_and_idempotent_cancel(api_cli
                 )
             )
             event_count = await session.scalar(
-                select(func.count()).select_from(
-                    select(SalesOrder.id).where(SalesOrder.id == uuid.UUID(order_id)).subquery()
+                select(func.count(SalesOrderEvent.id)).where(
+                    SalesOrderEvent.order_id == uuid.UUID(order_id)
                 )
             )
             return balances, reservations, movement_count, event_count
@@ -394,15 +394,13 @@ def test_concurrent_same_key_is_idempotent_and_different_keys_cannot_oversell():
                 )
             )
             count = await session.scalar(
-                select(func.count(SalesOrder.id)).where(
+                select(func.count(SalesOrderLine.id)).where(
                     SalesOrderLine.product_id == seeded["products"][sku]["id"]
                 )
             )
             return balance, count
 
     # The same-key pair creates exactly one order and reserves one unit.
-    from app.models.sales_order import SalesOrderLine
-
     same_balance, same_order_count = _db_run(
         lambda factory: inspect(factory, same_key_seed, same_sku)
     )
