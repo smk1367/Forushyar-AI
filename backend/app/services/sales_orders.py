@@ -371,8 +371,6 @@ async def create_sales_order(
         order.currency_code = currency_code
         order.subtotal = subtotal
         order.updated_at = datetime.now(timezone.utc)
-        if order is None:
-            raise HTTPException(status_code=500, detail="ثبت سفارش انجام شد اما بازیابی آن ناموفق بود")
 
         movement_rows = []
         reservation_rows = []

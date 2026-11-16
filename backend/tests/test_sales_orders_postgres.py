@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
-from app.db.session import engine as app_engine
 from app.main import app
 from app.models.inventory import InventoryBalance, StockMovement, StockReservation
 from app.models.product import Product
@@ -230,17 +229,23 @@ def test_order_snapshot_multiwarehouse_idempotency_and_idempotent_cancel(api_cli
                     StockMovement.movement_type.in_(["RESERVE", "RELEASE"]),
                 )
             )
-            return balances, reservations, movement_count
+            event_count = await session.scalar(
+                select(func.count()).select_from(
+                    select(SalesOrder.id).where(SalesOrder.id == uuid.UUID(order_id)).subquery()
+                )
+            )
+            return balances, reservations, movement_count, event_count
 
-    balances, reservations, movement_count = _db_run(inspect)
+    balances, reservations, movement_count, event_count = _db_run(inspect)
     assert {str(x.on_hand) for x in balances} == {"2.000", "3.000"}
     assert all(Decimal(x.reserved) == Decimal("0") for x in balances)
     assert len(reservations) == 2
     assert all(x.status == "RELEASED" for x in reservations)
     assert movement_count == 4
+    assert event_count == 1
 
 
-def test_failed_second_line_rolls_back_order_and_all_reservations(api_client):
+def test_failed_second_line_rolls_back_order_reservations_and_movements(api_client):
     seeded = _seed_catalog(
         [
             {"price": "5.00", "stocks": {"A": "5", "B": "0"}},
@@ -249,6 +254,7 @@ def test_failed_second_line_rolls_back_order_and_all_reservations(api_client):
         ["A", "B"],
     )
     skus = list(seeded["products"])
+    product_ids = [x["id"] for x in seeded["products"].values()]
     key = "rollback-" + seeded["suffix"]
     response = api_client.post(
         "/api/v1/sales/orders",
@@ -268,29 +274,50 @@ def test_failed_second_line_rolls_back_order_and_all_reservations(api_client):
             reservation_count = await session.scalar(
                 select(func.count(StockReservation.id)).where(
                     StockReservation.reference_type == "SALES_ORDER",
-                    StockReservation.idempotency_key.like("SO:%"),
+                    StockReservation.product_id.in_(product_ids),
                 )
             )
-            reserved = await session.scalar(
-                select(func.sum(InventoryBalance.reserved)).where(
-                    InventoryBalance.product_id.in_(
-                        [x["id"] for x in seeded["products"].values()]
+            movement_count = await session.scalar(
+                select(func.count(StockMovement.id)).where(
+                    StockMovement.reference_type == "SALES_ORDER",
+                    StockMovement.product_id.in_(product_ids),
+                )
+            )
+            balances = list(
+                (
+                    await session.scalars(
+                        select(InventoryBalance).where(
+                            InventoryBalance.product_id.in_(product_ids)
+                        )
                     )
-                )
+                ).all()
             )
-            return order_count, reservation_count, reserved
+            return order_count, reservation_count, movement_count, balances
 
-    order_count, _reservation_count, reserved = _db_run(inspect)
+    order_count, reservation_count, movement_count, balances = _db_run(inspect)
     assert order_count == 0
-    assert Decimal(reserved or 0) == Decimal("0")
+    assert reservation_count == 0
+    assert movement_count == 0
+    assert sorted(Decimal(x.on_hand) for x in balances) == [
+        Decimal("1.000"),
+        Decimal("5.000"),
+        Decimal("0.000"),
+        Decimal("0.000"),
+    ]
+    assert all(Decimal(x.reserved) == Decimal("0") for x in balances)
 
 
-def test_missing_warehouse_balance_is_unknown_not_zero(api_client):
+def test_missing_warehouse_balance_is_unknown_and_never_created(api_client):
     seeded = _seed_catalog(
         [{"price": "12.00", "stocks": {"A": "1"}}],
         ["A", "B"],
     )
     sku = next(iter(seeded["products"]))
+    missing_warehouse_id = next(
+        value["id"]
+        for key, value in seeded["warehouses"].items()
+        if key.endswith("-B")
+    )
     response = api_client.post(
         "/api/v1/sales/orders",
         json={"lines": [{"sku": sku, "quantity": "2"}]},
@@ -299,48 +326,93 @@ def test_missing_warehouse_balance_is_unknown_not_zero(api_client):
     assert response.status_code == 409
     assert "نامشخص" in response.json()["detail"]
 
+    async def inspect(factory):
+        async with factory() as session:
+            return await session.scalar(
+                select(func.count(InventoryBalance.product_id)).where(
+                    InventoryBalance.product_id == seeded["products"][sku]["id"],
+                    InventoryBalance.warehouse_id == missing_warehouse_id,
+                )
+            )
 
-def test_concurrent_duplicate_key_and_last_unit_are_safe():
-    seeded = _seed_catalog(
+    assert _db_run(inspect) == 0
+
+
+def test_concurrent_same_key_is_idempotent_and_different_keys_cannot_oversell():
+    same_key_seed = _seed_catalog(
         [{"price": "15.00", "stocks": {"A": "1"}}],
         ["A"],
     )
-    sku = next(iter(seeded["products"]))
-    payload = SalesOrderCreate(lines=[{"sku": sku, "quantity": "1"}])
+    same_sku = next(iter(same_key_seed["products"]))
+    same_payload = SalesOrderCreate(lines=[{"sku": same_sku, "quantity": "1"}])
 
-    async def run(factory):
-        async def submit(key):
-            async with factory() as session:
-                try:
-                    result = await create_sales_order(session, payload, key)
-                    return result.id
-                except HTTPException as exc:
-                    return exc.status_code
+    async def submit(factory, payload, key):
+        async with factory() as session:
+            try:
+                result = await create_sales_order(session, payload, key)
+                return result.id
+            except HTTPException as exc:
+                return exc.status_code
 
+    async def same_key_run(factory):
         return await asyncio.gather(
-            submit("same-idempotency-key"),
-            submit("same-idempotency-key"),
-            submit("different-order-key"),
+            submit(factory, same_payload, "same-key-" + same_key_seed["suffix"]),
+            submit(factory, same_payload, "same-key-" + same_key_seed["suffix"]),
         )
 
-    results = _db_run(run)
-    success_ids = [value for value in results if not isinstance(value, int)]
-    conflict_codes = [value for value in results if isinstance(value, int)]
-    assert len(success_ids) == 2
-    assert success_ids[0] == success_ids[1]
-    assert conflict_codes == [409]
+    same_results = _db_run(same_key_run)
+    same_success_ids = [value for value in same_results if not isinstance(value, int)]
+    assert len(same_success_ids) == 2
+    assert same_success_ids[0] == same_success_ids[1]
 
-    async def inspect(factory):
+    different_key_seed = _seed_catalog(
+        [{"price": "20.00", "stocks": {"A": "1"}}],
+        ["A"],
+    )
+    different_sku = next(iter(different_key_seed["products"]))
+    different_payload = SalesOrderCreate(lines=[{"sku": different_sku, "quantity": "1"}])
+
+    async def different_key_run(factory):
+        return await asyncio.gather(
+            submit(factory, different_payload, "order-a-" + different_key_seed["suffix"]),
+            submit(factory, different_payload, "order-b-" + different_key_seed["suffix"]),
+        )
+
+    different_results = _db_run(different_key_run)
+    different_success_ids = [
+        value for value in different_results if not isinstance(value, int)
+    ]
+    conflicts = [value for value in different_results if isinstance(value, int)]
+    assert len(different_success_ids) == 1
+    assert conflicts == [409]
+
+    async def inspect(factory, seeded, sku):
         async with factory() as session:
             balance = await session.scalar(
                 select(InventoryBalance).where(
                     InventoryBalance.product_id == seeded["products"][sku]["id"]
                 )
             )
-            count = await session.scalar(select(func.count(SalesOrder.id)))
+            count = await session.scalar(
+                select(func.count(SalesOrder.id)).where(
+                    SalesOrderLine.product_id == seeded["products"][sku]["id"]
+                )
+            )
             return balance, count
 
-    balance, count = _db_run(inspect)
-    assert Decimal(balance.on_hand) == Decimal("1.000")
-    assert Decimal(balance.reserved) == Decimal("1.000")
-    assert count == 1
+    # The same-key pair creates exactly one order and reserves one unit.
+    from app.models.sales_order import SalesOrderLine
+
+    same_balance, same_order_count = _db_run(
+        lambda factory: inspect(factory, same_key_seed, same_sku)
+    )
+    assert Decimal(same_balance.on_hand) == Decimal("1.000")
+    assert Decimal(same_balance.reserved) == Decimal("1.000")
+    assert same_order_count == 1
+
+    different_balance, different_order_count = _db_run(
+        lambda factory: inspect(factory, different_key_seed, different_sku)
+    )
+    assert Decimal(different_balance.on_hand) == Decimal("1.000")
+    assert Decimal(different_balance.reserved) == Decimal("1.000")
+    assert different_order_count == 1
