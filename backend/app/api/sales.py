@@ -1,8 +1,9 @@
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -197,4 +198,51 @@ async def preview_sales_quote(
         subtotal=sum((line["line_total"] for line in response_lines), Decimal("0")),
         fulfillment_status=fulfillment_status,
         lines=response_lines,
+    )
+
+
+from app.schemas import (
+    SalesOrderCancelRequest,
+    SalesOrderCreate,
+    SalesOrderRead,
+)
+from app.services.sales_orders import (
+    cancel_sales_order,
+    create_sales_order,
+    get_sales_order,
+)
+
+
+@router.post("/orders", response_model=SalesOrderRead, status_code=201)
+async def create_order(
+    payload: SalesOrderCreate,
+    idempotency_key: str = Header(
+        ..., alias="Idempotency-Key", min_length=8, max_length=120
+    ),
+    session: AsyncSession = Depends(get_db),
+):
+    """Create a pending-payment order and reserve every line atomically."""
+    return await create_sales_order(session, payload, idempotency_key)
+
+
+@router.get("/orders/{order_id}", response_model=SalesOrderRead)
+async def read_order(
+    order_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+):
+    return await get_sales_order(session, order_id)
+
+
+@router.post("/orders/{order_id}/cancel", response_model=SalesOrderRead)
+async def cancel_order(
+    order_id: uuid.UUID,
+    payload: SalesOrderCancelRequest,
+    idempotency_key: str = Header(
+        ..., alias="Idempotency-Key", min_length=8, max_length=120
+    ),
+    session: AsyncSession = Depends(get_db),
+):
+    """Cancel a pending order and release all active reservations atomically."""
+    return await cancel_sales_order(
+        session, order_id, idempotency_key, payload.reason
     )

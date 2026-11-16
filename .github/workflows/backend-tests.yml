@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - feature/sales-quote-preview-v0.5.0
+      - feature/atomic-sales-orders-v0.6.0
   workflow_dispatch:
 
 permissions:
@@ -15,12 +16,27 @@ permissions:
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: forushyar_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d forushyar_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       APP_ENV: test
       API_KEY: forushyar-ci-test-key-0000000000000000
       DATABASE_URL: postgresql+asyncpg://ci:ci@127.0.0.1:5432/forushyar_test
       REDIS_URL: redis://127.0.0.1:6379/0
       PYTHONPATH: backend
+      RUN_POSTGRES_INTEGRATION_TESTS: "1"
 
     steps:
       - name: Check out repository
@@ -37,6 +53,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r backend/requirements.txt
+
+      - name: Apply database migrations
+        working-directory: backend
+        run: python -m alembic upgrade head
 
       - name: Run backend test suite
         run: python -m pytest -q -p no:cacheprovider backend/tests

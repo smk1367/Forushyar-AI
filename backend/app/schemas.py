@@ -349,3 +349,96 @@ class QuotePreviewResponse(BaseModel):
     subtotal: Decimal
     fulfillment_status: Literal["AVAILABLE", "INSUFFICIENT", "UNKNOWN"]
     lines: list[QuotePreviewLineResponse]
+
+
+class SalesOrderLineCreate(BaseModel):
+    sku: str = Field(min_length=1, max_length=80)
+    quantity: PositiveQuantity
+    warehouse_id: uuid.UUID | None = None
+
+    @field_validator("sku")
+    @classmethod
+    def normalize_order_sku(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("کد کالا نباید خالی باشد")
+        return normalized
+
+
+class SalesOrderCreate(BaseModel):
+    customer_id: uuid.UUID | None = None
+    warehouse_id: uuid.UUID | None = None
+    lines: list[SalesOrderLineCreate] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def reject_duplicate_order_skus(self):
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for line in self.lines:
+            if line.sku in seen:
+                duplicates.add(line.sku)
+            seen.add(line.sku)
+        if duplicates:
+            raise ValueError(
+                "هر کد کالا فقط یک‌بار در سفارش مجاز است؛ کدهای تکراری: "
+                + "، ".join(sorted(duplicates))
+            )
+        return self
+
+
+class SalesOrderCancelRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=240)
+
+    @field_validator("reason")
+    @classmethod
+    def clean_cancel_reason(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if len(value) < 3:
+            raise ValueError("دلیل لغو سفارش باید حداقل سه نویسه باشد")
+        return value
+
+
+class SalesOrderAllocationRead(BaseModel):
+    reservation_id: uuid.UUID
+    warehouse_id: uuid.UUID
+    warehouse_code: str
+    warehouse_name: str
+    quantity: Decimal
+    status: Literal["ACTIVE", "RELEASED", "CONSUMED"]
+
+
+class SalesOrderLineRead(BaseModel):
+    id: uuid.UUID
+    product_id: uuid.UUID
+    sku: str
+    product_name: str
+    unit: str
+    quantity: Decimal
+    unit_price: Decimal
+    currency_code: str
+    line_total: Decimal
+    allocations: list[SalesOrderAllocationRead]
+
+
+class SalesOrderEventRead(BaseModel):
+    id: uuid.UUID
+    event_type: str
+    from_status: str | None
+    to_status: str
+    reason: str
+    created_at: datetime
+
+
+class SalesOrderRead(BaseModel):
+    id: uuid.UUID
+    customer_id: uuid.UUID | None
+    customer_name: str | None
+    status: Literal["PENDING_PAYMENT", "CANCELLED"]
+    currency_code: str
+    subtotal: Decimal
+    lines: list[SalesOrderLineRead]
+    events: list[SalesOrderEventRead]
+    created_at: datetime
+    updated_at: datetime
+    cancelled_at: datetime | None
+    cancellation_reason: str | None
