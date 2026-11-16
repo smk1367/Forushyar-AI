@@ -36,6 +36,7 @@ jobs:
     env:
       APP_ENV: test
       API_KEY: forushyar-ci-test-key-0000000000000000
+      SESSION_SECRET: forushyar-ci-session-secret-0000000000000000000000000000000000000000
       DATABASE_URL: postgresql+asyncpg://ci:ci@127.0.0.1:5432/forushyar_test
       REDIS_URL: redis://127.0.0.1:6379/0
       PYTHONPATH: backend
