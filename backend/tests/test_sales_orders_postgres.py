@@ -456,7 +456,7 @@ def test_explicit_warehouse_is_respected_without_fallback(api_client):
     created = api_client.post(
         "/api/v1/sales/orders",
         json={
-            "warehouse_id": warehouse_b,
+            "warehouse_id": str(warehouse_b),
             "lines": [
                 {"sku": sku, "quantity": "2", "warehouse_id": str(warehouse_a)}
             ],
