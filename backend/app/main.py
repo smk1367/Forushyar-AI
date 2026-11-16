@@ -11,6 +11,8 @@ from app.api.product_entry import api_router as product_entry_api_router, web_ro
 from app.api.product_import import api_router as product_import_api_router
 from app.api.routes import router
 from app.api.sales import router as sales_router
+from app.api.auth import router as auth_router
+from app.api.dashboard import router as dashboard_router
 from app.core.config import settings
 from app.db.session import engine
 
@@ -73,6 +75,8 @@ async def ready():
     return {"status": "ready"}
 
 
+app.include_router(auth_router)
+app.include_router(dashboard_router)
 app.include_router(router)
 app.include_router(sales_router)
 app.include_router(product_entry_api_router)
