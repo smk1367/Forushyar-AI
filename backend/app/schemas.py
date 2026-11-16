@@ -280,3 +280,48 @@ class AssistantStatusRead(BaseModel):
 
 class ConversationAction(BaseModel):
     reason: str = Field(min_length=3, max_length=240)
+
+class QuotePreviewLineRequest(BaseModel):
+    sku: str = Field(min_length=1, max_length=80)
+    quantity: PositiveQuantity
+
+
+class QuotePreviewRequest(BaseModel):
+    customer_id: uuid.UUID | None = None
+    warehouse_id: uuid.UUID | None = None
+    lines: list[QuotePreviewLineRequest] = Field(min_length=1, max_length=100)
+
+
+class QuoteWarehouseAvailability(BaseModel):
+    warehouse_id: uuid.UUID
+    warehouse_code: str
+    warehouse_name: str
+    on_hand: Decimal | None
+    reserved: Decimal | None
+    available: Decimal | None
+
+
+class QuotePreviewLineResponse(BaseModel):
+    product_id: uuid.UUID
+    sku: str
+    product_name: str
+    unit: str
+    quantity: Decimal
+    unit_price: Decimal
+    currency_code: str
+    line_total: Decimal
+    stock_status: Literal["AVAILABLE", "INSUFFICIENT", "UNKNOWN"]
+    availability: list[QuoteWarehouseAvailability]
+
+
+class QuotePreviewResponse(BaseModel):
+    evaluated_at: datetime
+    customer_id: uuid.UUID | None
+    customer_name: str | None
+    warehouse_id: uuid.UUID | None
+    currency_code: str
+    line_count: int
+    subtotal: Decimal
+    fulfillment_status: Literal["AVAILABLE", "INSUFFICIENT", "UNKNOWN"]
+    lines: list[QuotePreviewLineResponse]
+
