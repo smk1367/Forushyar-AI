@@ -3,8 +3,8 @@ name: Backend tests
 on:
   pull_request:
     branches:
-#      - feature/assistant-real-inventory-v0.4.12
       - main
+      - release/v0.6.0
   push:
     branches:
       - main
