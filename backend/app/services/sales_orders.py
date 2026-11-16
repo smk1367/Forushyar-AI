@@ -334,7 +334,7 @@ async def create_sales_order(
                 elif any(balance is None for _, balance in known):
                     raise HTTPException(
                         status_code=409,
-                        detail=f"موجودی یک یا چند انبار برای کالای {product.sku} ثبت نشده است؛ تخصیص تجمیعی ایمن نیست",
+                        detail=f"موجودی یک یا چند انبار برای کالای {product.sku} نامشخص است؛ تخصیص تجمیعی ایمن نیست",
                     )
                 else:
                     available_total = sum(

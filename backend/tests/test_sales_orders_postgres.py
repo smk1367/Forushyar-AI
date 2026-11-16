@@ -183,7 +183,7 @@ def test_order_snapshot_multiwarehouse_idempotency_and_idempotent_cancel(api_cli
     fetched = api_client.get(f"/api/v1/sales/orders/{order_id}", headers=_headers("read-key-0001"))
     assert fetched.status_code == 200
     assert fetched.json()["lines"][0]["unit_price"] == "10.00"
-    assert fetched.json()["subtotal"] == "40.00"
+    assert Decimal(fetched.json()["subtotal"]) == Decimal("40.00")
 
     cancel_headers = _headers("cancel-it-" + seeded["suffix"])
     cancelled = api_client.post(
@@ -446,7 +446,7 @@ def test_explicit_warehouse_is_respected_without_fallback(api_client):
     insufficient = api_client.post(
         "/api/v1/sales/orders",
         json={
-            "warehouse_id": warehouse_b,
+            "warehouse_id": str(warehouse_b),
             "lines": [{"sku": sku, "quantity": "2"}],
         },
         headers=_headers("selected-b-" + seeded["suffix"]),
@@ -458,7 +458,7 @@ def test_explicit_warehouse_is_respected_without_fallback(api_client):
         json={
             "warehouse_id": warehouse_b,
             "lines": [
-                {"sku": sku, "quantity": "2", "warehouse_id": warehouse_a}
+                {"sku": sku, "quantity": "2", "warehouse_id": str(warehouse_a)}
             ],
         },
         headers=_headers("line-override-" + seeded["suffix"]),
