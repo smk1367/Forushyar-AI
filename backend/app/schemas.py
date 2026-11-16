@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, condecimal, field_validator
+from pydantic import BaseModel, ConfigDict, Field, condecimal, field_validator, model_validator
 
 Quantity = condecimal(max_digits=18, decimal_places=3)
 PositiveQuantity = condecimal(max_digits=18, decimal_places=3, gt=0)
@@ -281,15 +281,40 @@ class AssistantStatusRead(BaseModel):
 class ConversationAction(BaseModel):
     reason: str = Field(min_length=3, max_length=240)
 
+
 class QuotePreviewLineRequest(BaseModel):
     sku: str = Field(min_length=1, max_length=80)
     quantity: PositiveQuantity
+
+    @field_validator("sku")
+    @classmethod
+    def normalize_sku(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("کد کالا نباید خالی باشد")
+        return normalized
 
 
 class QuotePreviewRequest(BaseModel):
     customer_id: uuid.UUID | None = None
     warehouse_id: uuid.UUID | None = None
     lines: list[QuotePreviewLineRequest] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def reject_duplicate_skus(self):
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for line in self.lines:
+            if line.sku in seen:
+                duplicates.add(line.sku)
+            seen.add(line.sku)
+        if duplicates:
+            duplicate_list = "، ".join(sorted(duplicates))
+            raise ValueError(
+                "هر کد کالا فقط یک‌بار در پیش‌فاکتور مجاز است؛ کدهای تکراری: "
+                + duplicate_list
+            )
+        return self
 
 
 class QuoteWarehouseAvailability(BaseModel):
@@ -324,4 +349,3 @@ class QuotePreviewResponse(BaseModel):
     subtotal: Decimal
     fulfillment_status: Literal["AVAILABLE", "INSUFFICIENT", "UNKNOWN"]
     lines: list[QuotePreviewLineResponse]
-
