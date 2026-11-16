@@ -28,6 +28,8 @@ def _line_stock_status(
     known_values = [value for value in available_values if value is not None]
     if any(value >= quantity for value in known_values):
         return "AVAILABLE"
+    if any(value is None for value in available_values):
+        return "UNKNOWN"
     if known_values:
         return "INSUFFICIENT"
     return "UNKNOWN"
