@@ -13,6 +13,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -26,9 +27,22 @@ from app.models.warehouse import Warehouse
 from app.schemas import SalesOrderCreate
 from app.services.sales_orders import create_sales_order
 
+def _integration_database_is_safe() -> bool:
+    if os.getenv("RUN_POSTGRES_INTEGRATION_TESTS") != "1":
+        return False
+    try:
+        database_url = make_url(settings.database_url)
+    except (TypeError, ValueError):
+        return False
+    return (
+        database_url.database == "forushyar_test"
+        and database_url.host in {"127.0.0.1", "localhost"}
+    )
+
+
 pytestmark = pytest.mark.skipif(
-    os.getenv("RUN_POSTGRES_INTEGRATION_TESTS") != "1",
-    reason="requires a dedicated disposable PostgreSQL test database",
+    not _integration_database_is_safe(),
+    reason="requires RUN_POSTGRES_INTEGRATION_TESTS=1 and a disposable localhost database named forushyar_test",
 )
 
 TEST_API_KEY = "forushyar-ci-test-key-0000000000000000"
