@@ -221,7 +221,8 @@ async def create_sales_order(
                     ProductPrice.effective_to > evaluated_at,
                 ),
             )
-            .order_by(ProductPrice.effective_from.desc())
+            .order_by(ProductPrice.product_id, ProductPrice.effective_from.desc())
+            .with_for_update(read=True)
         )
         prices = list((await session.scalars(price_stmt)).all())
         price_by_product_id = {price.product_id: price for price in prices}
@@ -491,6 +492,16 @@ async def cancel_sales_order(
             )
 
         if order.status == "CANCELLED":
+            if order.cancel_idempotency_key != idempotency_key:
+                raise HTTPException(
+                    status_code=409,
+                    detail="این سفارش قبلاً لغو شده است",
+                )
+            if order.cancellation_reason != reason:
+                raise HTTPException(
+                    status_code=409,
+                    detail="کلید لغو قبلاً با دلیل دیگری استفاده شده است",
+                )
             return await _load_order(session, order)
         if order.status != "PENDING_PAYMENT":
             raise HTTPException(status_code=409, detail="وضعیت فعلی سفارش اجازه لغو نمی‌دهد")

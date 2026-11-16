@@ -197,11 +197,25 @@ def test_order_snapshot_multiwarehouse_idempotency_and_idempotent_cancel(api_cli
 
     cancelled_again = api_client.post(
         f"/api/v1/sales/orders/{order_id}/cancel",
-        json={"reason": "تکرار درخواست لغو"},
+        json={"reason": "عدم تأیید مشتری"},
         headers=cancel_headers,
     )
     assert cancelled_again.status_code == 200
     assert cancelled_again.json()["status"] == "CANCELLED"
+
+    reused_key_conflict = api_client.post(
+        f"/api/v1/sales/orders/{order_id}/cancel",
+        json={"reason": "دلیل متفاوت"},
+        headers=cancel_headers,
+    )
+    assert reused_key_conflict.status_code == 409
+
+    new_key_conflict = api_client.post(
+        f"/api/v1/sales/orders/{order_id}/cancel",
+        json={"reason": "عدم تأیید مشتری"},
+        headers=_headers("cancel-new-" + seeded["suffix"]),
+    )
+    assert new_key_conflict.status_code == 409
 
     async def inspect(factory):
         async with factory() as session:
@@ -242,7 +256,7 @@ def test_order_snapshot_multiwarehouse_idempotency_and_idempotent_cancel(api_cli
     assert len(reservations) == 2
     assert all(x.status == "RELEASED" for x in reservations)
     assert movement_count == 4
-    assert event_count == 1
+    assert event_count == 2
 
 
 def test_failed_second_line_rolls_back_order_reservations_and_movements(api_client):
@@ -299,10 +313,10 @@ def test_failed_second_line_rolls_back_order_reservations_and_movements(api_clie
     assert reservation_count == 0
     assert movement_count == 0
     assert sorted(Decimal(x.on_hand) for x in balances) == [
+        Decimal("0.000"),
+        Decimal("0.000"),
         Decimal("1.000"),
         Decimal("5.000"),
-        Decimal("0.000"),
-        Decimal("0.000"),
     ]
     assert all(Decimal(x.reserved) == Decimal("0") for x in balances)
 
@@ -414,3 +428,43 @@ def test_concurrent_same_key_is_idempotent_and_different_keys_cannot_oversell():
     assert Decimal(different_balance.on_hand) == Decimal("1.000")
     assert Decimal(different_balance.reserved) == Decimal("1.000")
     assert different_order_count == 1
+
+
+def test_explicit_warehouse_is_respected_without_fallback(api_client):
+    seeded = _seed_catalog(
+        [{"price": "30.00", "stocks": {"A": "3", "B": "1"}}],
+        ["A", "B"],
+    )
+    sku = next(iter(seeded["products"]))
+    warehouse_a = next(
+        value["id"] for key, value in seeded["warehouses"].items() if key.endswith("-A")
+    )
+    warehouse_b = next(
+        value["id"] for key, value in seeded["warehouses"].items() if key.endswith("-B")
+    )
+
+    insufficient = api_client.post(
+        "/api/v1/sales/orders",
+        json={
+            "warehouse_id": warehouse_b,
+            "lines": [{"sku": sku, "quantity": "2"}],
+        },
+        headers=_headers("selected-b-" + seeded["suffix"]),
+    )
+    assert insufficient.status_code == 409
+
+    created = api_client.post(
+        "/api/v1/sales/orders",
+        json={
+            "warehouse_id": warehouse_b,
+            "lines": [
+                {"sku": sku, "quantity": "2", "warehouse_id": warehouse_a}
+            ],
+        },
+        headers=_headers("line-override-" + seeded["suffix"]),
+    )
+    assert created.status_code == 201, created.text
+    allocations = created.json()["lines"][0]["allocations"]
+    assert len(allocations) == 1
+    assert allocations[0]["warehouse_id"] == str(warehouse_a)
+    assert Decimal(allocations[0]["quantity"]) == Decimal("2.000")
