@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
+from app.models.customer import Customer
 from app.models.warehouse import Warehouse
 
 TEST_API_KEY = "forushyar-ci-test-key-0000000000000000"
@@ -187,6 +188,94 @@ def test_quote_preview_api_rejects_unknown_sku(monkeypatch):
 
     assert response.status_code == 404
     assert "کالای فعال" in response.json()["detail"]
+
+
+def test_quote_preview_api_rejects_mixed_currencies(monkeypatch):
+    product_a, _warehouse_a, price_a, _balance_a = _records(currency="IRT")
+    product_b = SimpleNamespace(
+        id=uuid4(), sku="501", name="کالای دوم", unit="عدد", is_active=True
+    )
+    price_b = SimpleNamespace(
+        product_id=product_b.id,
+        amount=Decimal("12.00"),
+        currency_code="IRR",
+    )
+    session = _FakeSession([[product_a, product_b], [price_a, price_b]])
+
+    response = _post_quote(
+        monkeypatch,
+        session,
+        {"lines": [
+            {"sku": "500", "quantity": "1"},
+            {"sku": "501", "quantity": "1"},
+        ]},
+    )
+
+    assert response.status_code == 409
+    assert "واحد پول" in response.json()["detail"]
+
+
+def test_quote_preview_api_rejects_unknown_customer(monkeypatch):
+    customer_id = uuid4()
+    session = _FakeSession(
+        [],
+        {(Customer, customer_id): None},
+    )
+
+    response = _post_quote(
+        monkeypatch,
+        session,
+        {
+            "customer_id": str(customer_id),
+            "lines": [{"sku": "500", "quantity": "1"}],
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "مشتری یافت نشد"
+
+
+def test_quote_preview_api_rejects_inactive_selected_warehouse(monkeypatch):
+    product, warehouse, price, _balance = _records()
+    inactive_warehouse = SimpleNamespace(
+        id=warehouse.id,
+        code=warehouse.code,
+        name=warehouse.name,
+        is_active=False,
+    )
+    session = _FakeSession(
+        [[product], [price]],
+        {(Warehouse, warehouse.id): inactive_warehouse},
+    )
+
+    response = _post_quote(
+        monkeypatch,
+        session,
+        {
+            "warehouse_id": str(warehouse.id),
+            "lines": [{"sku": "500", "quantity": "1"}],
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "انبار فعال یافت نشد"
+
+
+def test_quote_preview_api_with_no_active_warehouses_returns_unknown(monkeypatch):
+    product, _warehouse, price, _balance = _records()
+    session = _FakeSession([[product], [price], []])
+
+    response = _post_quote(
+        monkeypatch,
+        session,
+        {"lines": [{"sku": "500", "quantity": "1"}]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["fulfillment_status"] == "UNKNOWN"
+    assert body["lines"][0]["stock_status"] == "UNKNOWN"
+    assert body["lines"][0]["availability"] == []
 
 
 def test_quote_preview_api_requires_api_key(monkeypatch):
