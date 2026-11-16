@@ -158,6 +158,37 @@ async def create_sales_order(
             if customer is None:
                 raise HTTPException(status_code=404, detail="مشتری یافت نشد")
 
+        # Claim the idempotency key before taking inventory locks. Concurrent
+        # retries then wait on this unique key and return the committed order,
+        # rather than failing after observing the stock already reserved by it.
+        order_id = uuid.uuid4()
+        inserted_id = await session.scalar(
+            pg_insert(SalesOrder)
+            .values(
+                id=order_id,
+                customer_id=payload.customer_id,
+                status="PENDING_PAYMENT",
+                currency_code="XXX",
+                subtotal=ZERO,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+            )
+            .on_conflict_do_nothing(index_elements=["idempotency_key"])
+            .returning(SalesOrder.id)
+        )
+        if inserted_id is None:
+            existing = await session.scalar(
+                select(SalesOrder).where(SalesOrder.idempotency_key == idempotency_key)
+            )
+            if existing is None:
+                raise HTTPException(status_code=409, detail="ثبت تکرارپذیر سفارش هم‌زمان شد؛ دوباره تلاش کنید")
+            if existing.request_hash != request_hash:
+                raise HTTPException(
+                    status_code=409,
+                    detail="این Idempotency-Key قبلاً با اطلاعات سفارش دیگری استفاده شده است",
+                )
+            return await _load_order(session, existing)
+
         requested_skus = [line.sku for line in payload.lines]
         products = list(
             (
@@ -330,39 +361,16 @@ async def create_sales_order(
 
             plans.append((product, price, quantity, allocations))
 
-        order_id = uuid.uuid4()
         subtotal = sum(
             (Decimal(price.amount) * quantity for _, price, quantity, _ in plans),
             ZERO,
         )
-        inserted_id = await session.scalar(
-            pg_insert(SalesOrder)
-            .values(
-                id=order_id,
-                customer_id=payload.customer_id,
-                status="PENDING_PAYMENT",
-                currency_code=currency_code,
-                subtotal=subtotal,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-            )
-            .on_conflict_do_nothing(index_elements=["idempotency_key"])
-            .returning(SalesOrder.id)
-        )
-        if inserted_id is None:
-            existing = await session.scalar(
-                select(SalesOrder).where(SalesOrder.idempotency_key == idempotency_key)
-            )
-            if existing is None:
-                raise HTTPException(status_code=409, detail="ثبت تکرارپذیر سفارش هم‌زمان شد؛ دوباره تلاش کنید")
-            if existing.request_hash != request_hash:
-                raise HTTPException(
-                    status_code=409,
-                    detail="این Idempotency-Key قبلاً با اطلاعات سفارش دیگری استفاده شده است",
-                )
-            return await _load_order(session, existing)
-
         order = await session.get(SalesOrder, order_id)
+        if order is None:
+            raise HTTPException(status_code=500, detail="ثبت سفارش انجام شد اما بازیابی آن ناموفق بود")
+        order.currency_code = currency_code
+        order.subtotal = subtotal
+        order.updated_at = datetime.now(timezone.utc)
         if order is None:
             raise HTTPException(status_code=500, detail="ثبت سفارش انجام شد اما بازیابی آن ناموفق بود")
 
