@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     app_name: str = "Forushyar AI API"
-    app_version: str = "0.4.12"
+    app_version: str = "0.6.0"
     api_key: str = Field(min_length=24)
     database_url: str
     redis_url: str = "redis://redis:6379/0"
