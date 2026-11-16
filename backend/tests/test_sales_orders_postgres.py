@@ -32,7 +32,7 @@ def _integration_database_is_safe() -> bool:
         return False
     try:
         database_url = make_url(settings.database_url)
-    except (TypeError, ValueError):
+    except Exception:
         return False
     return (
         database_url.database == "forushyar_test"
