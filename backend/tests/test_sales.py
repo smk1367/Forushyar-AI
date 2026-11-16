@@ -19,6 +19,28 @@ def test_quote_preview_rejects_zero_or_negative_quantity():
         QuotePreviewRequest(lines=[{"sku": "SKU-1", "quantity": "-1"}])
 
 
+def test_quote_preview_normalizes_sku_whitespace():
+    payload = QuotePreviewRequest(
+        lines=[{"sku": "  SKU-1  ", "quantity": "1"}]
+    )
+    assert payload.lines[0].sku == "SKU-1"
+
+
+def test_quote_preview_rejects_blank_sku_after_trimming():
+    with pytest.raises(ValidationError, match="کد کالا نباید خالی باشد"):
+        QuotePreviewRequest(lines=[{"sku": "   ", "quantity": "1"}])
+
+
+def test_quote_preview_rejects_duplicate_skus_after_normalization():
+    with pytest.raises(ValidationError, match="کدهای تکراری"):
+        QuotePreviewRequest(
+            lines=[
+                {"sku": "SKU-1", "quantity": "1"},
+                {"sku": " SKU-1 ", "quantity": "2"},
+            ]
+        )
+
+
 def test_stock_status_does_not_treat_missing_balance_as_zero():
     assert _line_stock_status(Decimal("2"), [None]) == "UNKNOWN"
 
