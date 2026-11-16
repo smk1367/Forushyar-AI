@@ -38,4 +38,4 @@ def test_stock_status_reports_insufficient_when_all_known_balances_are_low():
 def test_stock_status_keeps_unknown_when_some_warehouses_have_no_balance():
     assert _line_stock_status(
         Decimal("5"), [Decimal("2"), None]
-    ) == "INSUFFICIENT"
+    ) == "UNKNOWN"
