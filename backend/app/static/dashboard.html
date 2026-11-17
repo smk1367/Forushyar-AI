@@ -32,6 +32,7 @@
   <button id="navInventory"><span class="ico">▦</span>محصولات و انبار</button>
   <button id="navConversations"><span class="ico">☏</span>مکالمات</button>
   <button id="navEmployees"><span class="ico">♧</span>کارمندان</button>
+  <button id="navTelephony"><span class="ico">☎</span>تلفن و تماس‌ها</button>
  </nav></div>
  <div><div class="nav-label">مدیریت</div><nav class="nav"><button id="navReports"><span class="ico">▥</span>گزارش‌های فروش</button><button id="navSettings"><span class="ico">⚙</span>تنظیمات</button></nav></div>
  <div class="side-bottom"><b>✦ دستیار هوشمند فروش</b><p>داده‌های فروش، مشتریان و سفارش‌ها را در یک نمای یکپارچه دنبال کنید.</p></div>
@@ -181,6 +182,7 @@
     <label class="field">نام و نام خانوادگی<input id="newEmployeeName" required minlength="2" maxlength="200"></label>
     <label class="field">ایمیل سازمانی<input id="newEmployeeEmail" type="email" required maxlength="254" autocomplete="off"></label>
     <label class="field">نقش<select id="newEmployeeRole"><option value="SALES">کارشناس فروش</option><option value="SUPPORT">پشتیبانی</option><option value="WAREHOUSE">انباردار</option><option value="MANAGER">مدیر</option><option value="ADMIN">مدیرکل</option></select></label>
+     <label class="field">داخلی تلفن<input id="newEmployeeExtension" inputmode="numeric" pattern="[0-9]{2,8}" maxlength="8" placeholder="مثلاً 102"></label>
    </div>
    <label class="field">گذرواژه اولیه (حداقل ۱۲ نویسه)<input id="newEmployeePassword" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></label>
    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="saveNewEmployee" type="submit" style="width:auto;min-width:150px">ایجاد حساب</button><button class="refresh" id="cancelEmployeeCreate" type="button">انصراف</button></div>
@@ -195,6 +197,7 @@
     <label class="field">نام و نام خانوادگی<input id="editEmployeeName" required minlength="2" maxlength="200"></label>
     <label class="field">نقش<select id="editEmployeeRole"><option value="SALES">کارشناس فروش</option><option value="SUPPORT">پشتیبانی</option><option value="WAREHOUSE">انباردار</option><option value="MANAGER">مدیر</option><option value="ADMIN">مدیرکل</option></select></label>
     <label class="field">وضعیت حساب<select id="editEmployeeActive"><option value="true">فعال</option><option value="false">غیرفعال</option></select></label>
+     <label class="field">داخلی تلفن<input id="editEmployeeExtension" inputmode="numeric" pattern="[0-9]{2,8}" maxlength="8" placeholder="مثلاً 102"></label>
    </div>
    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="saveEmployeeChanges" type="submit" style="width:auto;min-width:150px">ذخیره تغییرات</button><button class="refresh" id="cancelEmployeeEdit" type="button">بستن</button></div>
    <div class="error" id="employeeEditError"></div>
@@ -215,7 +218,7 @@
    <button class="refresh" type="submit">اعمال فیلتر</button>
   </form>
   <div class="section-head"><h3>فهرست کارکنان</h3><span class="muted" id="employeeCount">در حال دریافت…</span></div>
-  <div class="table-wrap"><table><thead><tr><th>نام</th><th>ایمیل</th><th>نقش</th><th>وضعیت</th><th>آخرین ورود</th><th>مدیریت</th></tr></thead><tbody id="employeesTable"><tr><td colspan="6" class="empty">در حال بارگذاری…</td></tr></tbody></table></div>
+  <div class="table-wrap"><table><thead><tr><th>نام</th><th>ایمیل</th><th>نقش</th><th>داخلی</th><th>وضعیت</th><th>آخرین ورود</th><th>مدیریت</th></tr></thead><tbody id="employeesTable"><tr><td colspan="7" class="empty">در حال بارگذاری…</td></tr></tbody></table></div>
   <div class="error" id="employeesError"></div>
  </section>
 </section>
@@ -478,7 +481,7 @@ async function loadSettings(){
 function showSettings(){activateDashboardView('settingsView','navSettings','میزکار مدیریت / تنظیمات','تنظیمات سازمان');loadSettings();}
 
 async function loadEmployees(){
- $('employeesError').textContent='';$('employeeCount').textContent='در حال دریافت اطلاعات…';$('employeesTable').innerHTML='<tr><td colspan="6" class="empty">در حال بارگذاری…</td></tr>';
+ $('employeesError').textContent='';$('employeeCount').textContent='در حال دریافت اطلاعات…';$('employeesTable').innerHTML='<tr><td colspan="7" class="empty">در حال بارگذاری…</td></tr>';
  try{
   const params=new URLSearchParams({limit:'200'});
   if($('employeeSearch').value.trim())params.set('q',$('employeeSearch').value.trim());
@@ -486,14 +489,14 @@ async function loadEmployees(){
   if($('employeeActiveFilter').value!=='')params.set('active',$('employeeActiveFilter').value);
   const rows=await api('/api/v1/dashboard/employees?'+params.toString());
   $('employeeCount').textContent=fa.format(rows.length)+' کارمند';
-  $('employeesTable').innerHTML=rows.length?rows.map(x=>'<tr><td><b>'+escapeHtml(x.full_name)+'</b></td><td>'+escapeHtml(x.email)+'</td><td>'+escapeHtml(roleNames[x.role]||x.role)+'</td><td><span class="status '+(x.is_active?'':'cancelled')+'">'+(x.is_active?'فعال':'غیرفعال')+'</span></td><td>'+customerDate(x.last_login_at)+'</td><td>'+(currentRole==='ADMIN'?'<button class="refresh employee-edit" type="button" data-id="'+escapeHtml(x.id)+'">ویرایش</button>':'فقط مشاهده')+'</td></tr>').join(''):'<tr><td colspan="6" class="empty">کارمندی مطابق فیلترها یافت نشد.</td></tr>';
+  $('employeesTable').innerHTML=rows.length?rows.map(x=>'<tr><td><b>'+escapeHtml(x.full_name)+'</b></td><td>'+escapeHtml(x.email)+'</td><td>'+escapeHtml(roleNames[x.role]||x.role)+'</td><td>'+escapeHtml(x.phone_extension||'—')+'</td><td><span class="status '+(x.is_active?'':'cancelled')+'">'+(x.is_active?'فعال':'غیرفعال')+'</span></td><td>'+customerDate(x.last_login_at)+'</td><td>'+(currentRole==='ADMIN'?'<button class="refresh employee-edit" type="button" data-id="'+escapeHtml(x.id)+'">ویرایش</button>':'فقط مشاهده')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">کارمندی مطابق فیلترها یافت نشد.</td></tr>';
   document.querySelectorAll('.employee-edit').forEach(b=>b.addEventListener('click',()=>editEmployee(b.dataset.id,rows)));
  }catch(e){$('employeeCount').textContent='خطا';$('employeesError').textContent=e.message;$('employeesTable').innerHTML='<tr><td colspan="6" class="empty">دریافت کارکنان ناموفق بود.</td></tr>';}
 }
 function showEmployees(){activateDashboardView('employeesView','navEmployees','میزکار مدیریت / کارکنان','مدیریت کارکنان');$('employeeCreatePanel').hidden=true;$('employeeEditPanel').hidden=true;loadEmployees();}
 function editEmployee(id,rows){
  const x=rows.find(r=>r.id===id);if(!x)return;
- $('employeeEditPanel').hidden=false;$('employeeCreatePanel').hidden=true;$('editEmployeeId').value=x.id;$('employeeEditTitle').textContent='ویرایش '+x.full_name;$('employeeEditEmail').textContent=x.email;$('editEmployeeName').value=x.full_name;$('editEmployeeRole').value=x.role;$('editEmployeeActive').value=String(x.is_active);$('employeeEditError').textContent='';$('employeePasswordError').textContent='';
+ $('employeeEditPanel').hidden=false;$('employeeCreatePanel').hidden=true;$('editEmployeeId').value=x.id;$('employeeEditTitle').textContent='ویرایش '+x.full_name;$('employeeEditEmail').textContent=x.email;$('editEmployeeName').value=x.full_name;$('editEmployeeRole').value=x.role;$('editEmployeeActive').value=String(x.is_active);$('editEmployeeExtension').value=x.phone_extension||'';$('employeeEditError').textContent='';$('employeePasswordError').textContent='';
  $('employeeEditPanel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
@@ -625,6 +628,7 @@ $('navCustomers').addEventListener('click',showCustomers);
 $('navInventory').addEventListener('click',showInventory);
 $('navConversations').addEventListener('click',showConversations);
 $('navEmployees').addEventListener('click',showEmployees);
+$('navTelephony').addEventListener('click',()=>{window.location.href='/telephony'});
 $('navReports').addEventListener('click',showReports);
 $('navSettings').addEventListener('click',showSettings);
 $('salesReportFilter').addEventListener('submit',e=>{e.preventDefault();loadSalesReport()});
@@ -641,11 +645,11 @@ $('cancelEmployeeEdit').addEventListener('click',()=>{$('employeeEditPanel').hid
 $('employeeFilterForm').addEventListener('submit',e=>{e.preventDefault();loadEmployees()});
 $('employeeCreateForm').addEventListener('submit',async e=>{
  e.preventDefault();$('saveNewEmployee').disabled=true;$('employeeCreateError').textContent='';
- try{await api('/api/v1/dashboard/employees',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify({full_name:$('newEmployeeName').value.trim(),email:$('newEmployeeEmail').value.trim(),password:$('newEmployeePassword').value,role:$('newEmployeeRole').value})});toast('حساب کارمند ایجاد شد');$('employeeCreateForm').reset();$('employeeCreatePanel').hidden=true;await loadEmployees()}catch(err){$('employeeCreateError').textContent=err.message}finally{$('saveNewEmployee').disabled=false}
+ try{await api('/api/v1/dashboard/employees',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify({full_name:$('newEmployeeName').value.trim(),email:$('newEmployeeEmail').value.trim(),password:$('newEmployeePassword').value,role:$('newEmployeeRole').value,phone_extension:$('newEmployeeExtension').value.trim()||null})});toast('حساب کارمند ایجاد شد');$('employeeCreateForm').reset();$('employeeCreatePanel').hidden=true;await loadEmployees()}catch(err){$('employeeCreateError').textContent=err.message}finally{$('saveNewEmployee').disabled=false}
 });
 $('employeeEditForm').addEventListener('submit',async e=>{
  e.preventDefault();$('saveEmployeeChanges').disabled=true;$('employeeEditError').textContent='';
- try{const id=$('editEmployeeId').value;await api('/api/v1/dashboard/employees/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify({full_name:$('editEmployeeName').value.trim(),role:$('editEmployeeRole').value,is_active:$('editEmployeeActive').value==='true'})});toast('اطلاعات کارمند به‌روزرسانی شد');$('employeeEditPanel').hidden=true;await loadEmployees()}catch(err){$('employeeEditError').textContent=err.message}finally{$('saveEmployeeChanges').disabled=false}
+ try{const id=$('editEmployeeId').value;await api('/api/v1/dashboard/employees/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify({full_name:$('editEmployeeName').value.trim(),role:$('editEmployeeRole').value,is_active:$('editEmployeeActive').value==='true',phone_extension:$('editEmployeeExtension').value.trim()||null})});toast('اطلاعات کارمند به‌روزرسانی شد');$('employeeEditPanel').hidden=true;await loadEmployees()}catch(err){$('employeeEditError').textContent=err.message}finally{$('saveEmployeeChanges').disabled=false}
 });
 $('employeePasswordForm').addEventListener('submit',async e=>{
  e.preventDefault();$('resetEmployeePasswordButton').disabled=true;$('employeePasswordError').textContent='';
