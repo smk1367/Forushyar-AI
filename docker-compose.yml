@@ -66,6 +66,7 @@ services:
     ports:
 #      - "127.0.0.1:${APP_PORT:-8000}:8000"
       - "8000:8000"
+      - "${UCM_TCP_BIND_IP:-127.0.0.1}:${UCM_TCP_HOST_PORT:-10000}:${UCM_TCP_PORT:-10000}"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)"]
       interval: 15s
