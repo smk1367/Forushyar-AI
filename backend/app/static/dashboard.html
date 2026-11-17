@@ -132,7 +132,7 @@ const fa=new Intl.NumberFormat('fa-IR');
 const money=(v,c='IRR')=>{const n=Number(v||0);return new Intl.NumberFormat('fa-IR',{maximumFractionDigits:0}).format(n)+' '+(c==='IRR'?'ریال':c)};
 function toast(s){const t=$('toast');t.textContent=s;t.style.display='block';setTimeout(()=>t.style.display='none',2600)}
 function createIdempotencyToken(){
- if(globalThis.crypto && typeof globalThis.crypto.randomUUID==='function')return globalThis.createIdempotencyToken();
+ if(globalThis.crypto && typeof globalThis.crypto.randomUUID==='function')return globalThis.crypto.randomUUID();
  if(globalThis.crypto && typeof globalThis.crypto.getRandomValues==='function'){
   const bytes=new Uint8Array(16);globalThis.crypto.getRandomValues(bytes);
   bytes[6]=(bytes[6]&0x0f)|0x40;bytes[8]=(bytes[8]&0x3f)|0x80;
