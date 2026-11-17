@@ -19,20 +19,28 @@ from app.api.dashboard_conversations import router as dashboard_conversations_ro
 from app.api.dashboard_employees import router as dashboard_employees_router
 from app.api.dashboard_reports import router as dashboard_reports_router
 from app.api.dashboard_settings import router as dashboard_settings_router
+from app.api.telephony import router as telephony_router
 from app.core.config import settings
-from app.db.session import engine
+from app.db.session import SessionLocal, engine
+from app.services.telephony import GrandstreamTelephonyRuntime
 
 redis_client: Redis | None = None
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(application: FastAPI):
     global redis_client
     redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
-    yield
-    if redis_client is not None:
-        await redis_client.aclose()
-    await engine.dispose()
+    telephony_runtime = GrandstreamTelephonyRuntime(settings, SessionLocal)
+    application.state.telephony_runtime = telephony_runtime
+    await telephony_runtime.start()
+    try:
+        yield
+    finally:
+        await telephony_runtime.stop()
+        if redis_client is not None:
+            await redis_client.aclose()
+        await engine.dispose()
 
 
 app = FastAPI(
@@ -68,6 +76,11 @@ async def dashboard_page():
     return FileResponse(Path(__file__).parent / "static" / "dashboard.html")
 
 
+@app.get("/telephony", include_in_schema=False)
+async def telephony_page():
+    return FileResponse(Path(__file__).parent / "static" / "telephony.html")
+
+
 @app.get("/health/live", tags=["health"])
 async def live():
     return {"status": "alive", "version": settings.app_version}
@@ -93,6 +106,7 @@ app.include_router(dashboard_conversations_router)
 app.include_router(dashboard_employees_router)
 app.include_router(dashboard_reports_router)
 app.include_router(dashboard_settings_router)
+app.include_router(telephony_router)
 app.include_router(router)
 app.include_router(sales_router)
 app.include_router(product_entry_api_router)

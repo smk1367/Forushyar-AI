@@ -30,6 +30,7 @@ class EmployeeCreateRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=12, max_length=256)
     role: EmployeeRole = "SALES"
+    phone_extension: str | None = Field(default=None, pattern=r"^[0-9]{2,8}$")
 
     @model_validator(mode="after")
     def normalize_fields(self):
@@ -44,6 +45,7 @@ class EmployeeUpdateRequest(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=200)
     role: EmployeeRole | None = None
     is_active: bool | None = None
+    phone_extension: str | None = Field(default=None, pattern=r"^[0-9]{2,8}$")
 
     @model_validator(mode="after")
     def validate_changes(self):
@@ -69,6 +71,7 @@ class EmployeeRead(BaseModel):
     full_name: str
     email: str
     role: str
+    phone_extension: str | None
     is_active: bool
     created_at: datetime
     last_login_at: datetime | None
@@ -121,6 +124,7 @@ async def create_dashboard_employee(
         email=payload.email,
         password_hash=hash_password(payload.password),
         role=payload.role,
+        phone_extension=payload.phone_extension,
         is_active=True,
     )
     session.add(created)

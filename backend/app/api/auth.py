@@ -25,6 +25,7 @@ class EmployeeSessionRead(BaseModel):
     full_name: str
     email: str
     role: str
+    phone_extension: str | None = None
 
 
 async def current_employee(request: Request, session: AsyncSession = Depends(get_db)) -> Employee:
@@ -61,7 +62,10 @@ async def login(payload: LoginRequest, response: Response, session: AsyncSession
         secure=settings.app_env == "production", samesite="strict",
         max_age=1800, path="/",
     )
-    return EmployeeSessionRead(id=employee.id, full_name=employee.full_name, email=employee.email, role=employee.role)
+    return EmployeeSessionRead(
+        id=employee.id, full_name=employee.full_name, email=employee.email,
+        role=employee.role, phone_extension=employee.phone_extension,
+    )
 
 
 @router.post("/logout", status_code=204, dependencies=[Depends(require_csrf)])
@@ -72,4 +76,7 @@ async def logout(response: Response):
 
 @router.get("/me", response_model=EmployeeSessionRead)
 async def me(employee: Employee = Depends(current_employee)):
-    return EmployeeSessionRead(id=employee.id, full_name=employee.full_name, email=employee.email, role=employee.role)
+    return EmployeeSessionRead(
+        id=employee.id, full_name=employee.full_name, email=employee.email,
+        role=employee.role, phone_extension=employee.phone_extension,
+    )
