@@ -460,7 +460,7 @@ async function loadSalesReport(){
 function showReports(){
  $('overviewView').hidden=true;$('customersView').hidden=true;$('ordersView').hidden=true;$('inventoryView').hidden=true;$('conversationsView').hidden=true;$('employeesView').hidden=true;$('settingsView').hidden=true;$('reportsView').hidden=false;
  ['navOverview','navCustomers','navOrders','navInventory','navConversations','navEmployees','navSettings','navReports'].forEach(id=>$(id).classList.remove('active'));$('navReports').classList.add('active');
- document.querySelector('.eyebrow').textContent='میزکار مدیریت / گزارش فروش';document.querySelector('.heading').textContent='گزارش‌های فروش';loadSalesReport();
+ document.querySelector('.eyebrow').textContent='میزکار مدیریت / گزارش فروش';document.querySelector('.heading').textContent='گزارش‌های فروش';if(!$('salesReportTo').value){const now=new Date();const fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');$('salesReportTo').value=fmt(now);const start=new Date(now);start.setDate(start.getDate()-29);$('salesReportFrom').value=fmt(start);}loadSalesReport();
 }
 async function loadSettings(){
  $('settingsSaveError').textContent='';
