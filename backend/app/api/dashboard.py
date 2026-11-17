@@ -1,13 +1,17 @@
 from datetime import datetime, time, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import current_employee
 from app.db.session import get_db
 from app.models.conversation import Conversation
 from app.models.customer import Customer
+from app.models.employee import Employee
+from app.schemas import CustomerCreate, CustomerRead
+from app.security import require_csrf
 from app.models.employee import Employee
 from app.models.product import Product
 from app.models.sales_order import SalesOrder
@@ -63,3 +67,53 @@ async def overview(session: AsyncSession = Depends(get_db)):
             for row in recent_orders
         ],
     }
+
+
+
+@router.get("/customers", response_model=list[CustomerRead])
+async def list_dashboard_customers(
+    q: str | None = Query(default=None, max_length=120),
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    session: AsyncSession = Depends(get_db),
+):
+    """List customers for authenticated dashboard employees."""
+    stmt = select(Customer).order_by(Customer.created_at.desc()).limit(limit).offset(offset)
+    search = (q or "").strip()
+    if search:
+        pattern = f"%{search}%"
+        stmt = stmt.where(
+            Customer.full_name.ilike(pattern)
+            | Customer.phone.ilike(pattern)
+            | Customer.email.ilike(pattern)
+        )
+    return list((await session.scalars(stmt)).all())
+
+
+@router.post(
+    "/customers",
+    response_model=CustomerRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_csrf)],
+)
+async def create_dashboard_customer(
+    payload: CustomerCreate,
+    employee: Employee = Depends(current_employee),
+    session: AsyncSession = Depends(get_db),
+):
+    """Create a customer from the session-authenticated dashboard."""
+    if employee.role not in {"ADMIN", "MANAGER", "SALES"}:
+        raise HTTPException(status_code=403, detail="سطح دسترسی برای ثبت مشتری کافی نیست")
+
+    customer = Customer(**payload.model_dump())
+    session.add(customer)
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="شماره تلفن قبلاً برای مشتری دیگری ثبت شده است",
+        ) from exc
+    await session.refresh(customer)
+    return customer
