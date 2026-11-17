@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 from uuid import uuid4
 
+from fastapi.routing import iter_route_contexts
 from fastapi.testclient import TestClient
 
 from app.api.auth import current_employee
@@ -63,7 +64,7 @@ def _request_as(role, method, path, *, session=None, **kwargs):
 
 
 def test_dashboard_inventory_routes_are_registered():
-    paths = {route.path for route in app.routes if getattr(route, "path", None)}
+    paths = {route.path for route in iter_route_contexts(app.routes) if getattr(route, "path", None)}
     assert "/api/v1/dashboard/products" in paths
     assert "/api/v1/dashboard/warehouses" in paths
     assert "/api/v1/dashboard/inventory" in paths
