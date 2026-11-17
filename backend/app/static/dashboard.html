@@ -228,7 +228,8 @@ async function loadCustomers(query=''){
  }
 }
 function showCustomers(){
- $('overviewView').hidden=true;$('customersView').hidden=false;
+ $('overviewView').hidden=true;$('ordersView').hidden=true;$('customersView').hidden=false;
+ $('navOrders').classList.remove('active');
  $('navCustomers').classList.add('active');
  document.querySelector('.nav button:first-child')?.classList.remove('active');
  document.querySelector('.eyebrow').textContent='میزکار مدیریت / مشتریان';
