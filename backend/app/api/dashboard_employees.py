@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +14,7 @@ from app.api.auth import current_employee
 from app.db.session import get_db
 from app.models.employee import Employee
 from app.security import hash_password, require_csrf
+from app.services.audit import add_audit_event
 
 router = APIRouter(
     prefix="/api/v1/dashboard",
@@ -51,6 +53,10 @@ class EmployeeUpdateRequest(BaseModel):
             if self.full_name is None or len(self.full_name.strip()) < 2:
                 raise ValueError("نام کارمند معتبر نیست")
             self.full_name = self.full_name.strip()
+        if "role" in self.model_fields_set and self.role is None:
+            raise ValueError("نقش کارمند نباید خالی باشد")
+        if "is_active" in self.model_fields_set and self.is_active is None:
+            raise ValueError("وضعیت حساب کارمند نباید خالی باشد")
         return self
 
 
@@ -64,8 +70,8 @@ class EmployeeRead(BaseModel):
     email: str
     role: str
     is_active: bool
-    created_at: object
-    last_login_at: object | None
+    created_at: datetime
+    last_login_at: datetime | None
 
 
 def _require_admin(employee: Employee) -> None:
@@ -105,6 +111,7 @@ async def list_dashboard_employees(
 )
 async def create_dashboard_employee(
     payload: EmployeeCreateRequest,
+    request: Request,
     employee: Employee = Depends(current_employee),
     session: AsyncSession = Depends(get_db),
 ):
@@ -117,6 +124,7 @@ async def create_dashboard_employee(
         is_active=True,
     )
     session.add(created)
+    add_audit_event(session, request, employee.id, "EMPLOYEE_CREATED", "employee", str(created.id), {"email": created.email, "role": created.role})
     try:
         await session.commit()
     except IntegrityError as exc:
@@ -134,6 +142,7 @@ async def create_dashboard_employee(
 async def update_dashboard_employee(
     employee_id: UUID,
     payload: EmployeeUpdateRequest,
+    request: Request,
     employee: Employee = Depends(current_employee),
     session: AsyncSession = Depends(get_db),
 ):
@@ -155,6 +164,7 @@ async def update_dashboard_employee(
             raise HTTPException(status_code=409, detail="حداقل یک مدیرکل فعال باید در سامانه باقی بماند")
     for field_name, value in updates.items():
         setattr(target, field_name, value)
+    add_audit_event(session, request, employee.id, "EMPLOYEE_UPDATED", "employee", str(target.id), {"changed_fields": sorted(updates.keys())})
     try:
         await session.commit()
     except IntegrityError as exc:
@@ -172,6 +182,7 @@ async def update_dashboard_employee(
 async def reset_dashboard_employee_password(
     employee_id: UUID,
     payload: EmployeePasswordResetRequest,
+    request: Request,
     employee: Employee = Depends(current_employee),
     session: AsyncSession = Depends(get_db),
 ):
@@ -180,5 +191,6 @@ async def reset_dashboard_employee_password(
     if target is None:
         raise HTTPException(status_code=404, detail="کارمند یافت نشد")
     target.password_hash = hash_password(payload.new_password)
+    add_audit_event(session, request, employee.id, "EMPLOYEE_PASSWORD_RESET", "employee", str(target.id), {})
     await session.commit()
     return None
