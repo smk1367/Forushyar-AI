@@ -142,6 +142,20 @@
    <button class="refresh" id="clearInventoryFilter" type="button">پاک کردن</button>
   </form>
  </section>
+ <section class="panel" id="priceFormPanel" hidden style="margin-bottom:15px">
+  <div class="panel-title"><h3>مدیریت قیمت کالا</h3><span class="muted" id="priceSkuLabel">—</span></div>
+  <form id="dashboardPriceForm" class="customer-form">
+   <input id="dashboardPriceSku" type="hidden">
+   <div class="customer-fields">
+    <label class="field">قیمت جدید (تومان)<input id="dashboardPriceAmount" type="number" min="0" step="0.01" required></label>
+    <label class="field">یادداشت تغییر قیمت<input id="dashboardPriceNotes" maxlength="1000" placeholder="علت یا مرجع تغییر قیمت"></label>
+   </div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="saveDashboardPrice" type="submit" style="width:auto;min-width:150px">ثبت قیمت جدید</button><button class="refresh" id="cancelPriceForm" type="button">بستن</button></div>
+   <div class="error" id="dashboardPriceError"></div>
+  </form>
+  <div class="section-head"><h3>تاریخچه قیمت</h3><span class="muted">سوابق قبلی حذف نمی‌شوند</span></div>
+  <div class="table-wrap"><table><thead><tr><th>قیمت (تومان)</th><th>وضعیت</th><th>شروع اعتبار</th><th>پایان اعتبار</th><th>منبع</th></tr></thead><tbody id="dashboardPriceHistory"><tr><td colspan="5" class="empty">در حال دریافت تاریخچه…</td></tr></tbody></table></div>
+</section>
  <section class="panel" id="productFormPanel" hidden style="margin-bottom:15px">
   <div class="panel-title"><h3>ثبت کالای جدید</h3><span class="muted">کد کالا باید یکتا باشد</span></div>
   <form id="dashboardProductForm" class="customer-form">
@@ -195,7 +209,7 @@
  </section>
  <section class="panel" style="margin-bottom:15px">
   <div class="panel-title"><h3>فهرست کالاها</h3><span class="muted" id="dashboardProductCount">در حال دریافت اطلاعات…</span></div>
-  <div class="table-wrap"><table><thead><tr><th>کد کالا</th><th>نام کالا</th><th>واحد</th><th>وضعیت</th></tr></thead><tbody id="dashboardProductsTable"><tr><td colspan="4" class="empty">در حال بارگذاری…</td></tr></tbody></table></div>
+  <div class="table-wrap"><table><thead><tr><th>کد کالا</th><th>نام کالا</th><th>واحد</th><th>قیمت فعال</th><th>وضعیت</th><th>اقدام</th></tr></thead><tbody id="dashboardProductsTable"><tr><td colspan="4" class="empty">در حال بارگذاری…</td></tr></tbody></table></div>
  </section>
  <section class="panel">
   <div class="panel-title"><h3>آخرین گردش‌های انبار</h3><span class="muted">آخرین ۳۰ عملیات ثبت‌شده</span></div>
@@ -215,9 +229,9 @@ function csrf(){return document.cookie.split('; ').find(x=>x.startsWith('forushy
 async function api(path,options={}){const res=await fetch(path,{credentials:'same-origin',...options,headers:{...(options.headers||{})}});if(res.status===401){showLogin();throw new Error('لطفاً وارد شوید')}if(!res.ok){let m='خطا در دریافت اطلاعات';try{m=(await res.json()).detail||m}catch{}throw new Error(m)}return res.status===204?null:res.json()}
 function showLogin(){ $('loginCover').style.display='flex';}
 function hideLogin(){ $('loginCover').style.display='none';}
-let currentRole='';
+let currentRole='';let canManagePrices=false;
 const roleNames={ADMIN:'مدیر کل',MANAGER:'مدیر',SALES:'کارشناس فروش',SUPPORT:'پشتیبانی',WAREHOUSE:'انباردار'};
-async function loadMe(){try{const me=await api('/api/v1/auth/me');$('employeeName').textContent=me.full_name;$('employeeRole').textContent=roleNames[me.role]||me.role;$('avatar').textContent=(me.full_name||'ک').trim().charAt(0);$('welcomeTitle').textContent='سلام '+me.full_name+'، خوش آمدید';currentRole=me.role;const canManageProducts=['ADMIN','MANAGER','WAREHOUSE'].includes(currentRole);const canManageWarehouses=['ADMIN','MANAGER'].includes(currentRole);$('showProductForm').hidden=!canManageProducts;$('showMovementForm').hidden=!canManageProducts;$('showWarehouseForm').hidden=!canManageWarehouses;hideLogin();return true}catch(e){if(!e.message.includes('وارد شوید'))toast(e.message);return false}}
+async function loadMe(){try{const me=await api('/api/v1/auth/me');$('employeeName').textContent=me.full_name;$('employeeRole').textContent=roleNames[me.role]||me.role;$('avatar').textContent=(me.full_name||'ک').trim().charAt(0);$('welcomeTitle').textContent='سلام '+me.full_name+'، خوش آمدید';currentRole=me.role;const canManageProducts=['ADMIN','MANAGER','WAREHOUSE'].includes(currentRole);const canManageWarehouses=['ADMIN','MANAGER'].includes(currentRole);canManagePrices=['ADMIN','MANAGER'].includes(currentRole);$('showProductForm').hidden=!canManageProducts;$('showMovementForm').hidden=!canManageProducts;$('showWarehouseForm').hidden=!canManageWarehouses;hideLogin();return true}catch(e){if(!e.message.includes('وارد شوید'))toast(e.message);return false}}
 function renderChart(rows){const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setUTCDate(d.getUTCDate()-6+i);return d.toISOString().slice(0,10)});const map=new Map(rows.map(x=>[x.date,Number(x.count)]));const vals=days.map(d=>map.get(d)||0);const max=Math.max(1,...vals),w=620,h=180,base=145,barW=43,gap=39;let svg='<svg class="chart" viewBox="0 0 620 180" role="img" aria-label="نمودار تعداد سفارش‌ها در هفت روز اخیر">';for(let n=0;n<4;n++){const y=20+n*40;svg+='<line class="gridline" x1="20" y1="'+y+'" x2="605" y2="'+y+'"/>'}vals.forEach((v,i)=>{const bh=v/max*112,x=34+i*(barW+gap),y=base-bh,label=new Date(days[i]+'T00:00:00Z').toLocaleDateString('fa-IR',{day:'numeric',month:'short',timeZone:'UTC'});svg+='<rect class="bar" x="'+x+'" y="'+y+'" width="'+barW+'" height="'+Math.max(3,bh)+'" rx="7"/><text x="'+(x+barW/2)+'" y="166" text-anchor="middle">'+label+'</text><text x="'+(x+barW/2)+'" y="'+(y-7)+'" text-anchor="middle">'+fa.format(v)+'</text>'});svg+='</svg>';$('chartArea').innerHTML=svg}
 function statusLabel(s){const labels={DRAFT:'پیش‌نویس',CONFIRMED:'تأییدشده',CANCELLED:'لغوشده',COMPLETED:'تکمیل‌شده',PENDING:'در انتظار'};return labels[s]||s||'نامشخص'}
 function dateLabel(v){if(!v)return'—';const d=new Date(v);return isNaN(d)?'—':d.toLocaleDateString('fa-IR',{year:'numeric',month:'short',day:'numeric'})}
@@ -285,6 +299,16 @@ function showOrders(){
  loadDashboardOrders();
 }
 
+async function showProductPriceEditor(sku){
+ try{
+  $('dashboardPriceSku').value=sku;$('priceSkuLabel').textContent='کد کالا: '+sku;$('dashboardPriceError').textContent='';
+  $('dashboardPriceHistory').innerHTML='<tr><td colspan="5" class="empty">در حال دریافت تاریخچه…</td></tr>';$('priceFormPanel').hidden=false;
+  const rows=await api('/api/v1/dashboard/products/'+encodeURIComponent(sku)+'/prices');
+  const active=rows.find(x=>x.is_active);$('dashboardPriceAmount').value=active?active.amount:'';
+  $('dashboardPriceHistory').innerHTML=rows.length?rows.map(x=>'<tr><td>'+fa.format(Number(x.amount))+'</td><td>'+(x.is_active?'<span class="status">فعال</span>':'غیرفعال')+'</td><td>'+customerDate(x.effective_from)+'</td><td>'+customerDate(x.effective_to)+'</td><td>'+escapeHtml(x.source||'—')+'</td></tr>').join(''):'<tr><td colspan="5" class="empty">هنوز قیمتی ثبت نشده است.</td></tr>';
+  $('priceFormPanel').scrollIntoView({behavior:'smooth',block:'start'});
+ }catch(e){$('dashboardPriceError').textContent=e.message}
+}
 async function loadInventory(){
  $('inventoryError').textContent='';
  $('inventoryCount').textContent='در حال دریافت اطلاعات…';
@@ -312,7 +336,7 @@ async function loadInventory(){
   $('inventoryCount').textContent=fa.format(rows.length)+' رکورد مانده موجودی';
   $('inventoryTable').innerHTML=rows.length?rows.map(x=>'<tr><td><b>'+escapeHtml(x.sku)+'</b></td><td>'+escapeHtml(x.product_name)+'</td><td>'+escapeHtml(x.warehouse_name)+'</td><td>'+fa.format(Number(x.on_hand))+'</td><td>'+fa.format(Number(x.reserved))+'</td><td><b>'+fa.format(Number(x.available))+'</b></td></tr>').join(''):'<tr><td colspan="6" class="empty">برای فیلتر انتخاب‌شده رکورد موجودی ثبت نشده است.</td></tr>';
   $('dashboardProductCount').textContent=fa.format(products.length)+' کالا';
-  $('dashboardProductsTable').innerHTML=products.length?products.map(p=>'<tr><td><b>'+escapeHtml(p.sku)+'</b></td><td>'+escapeHtml(p.name)+'</td><td>'+escapeHtml(p.unit)+'</td><td><span class="status">'+(p.is_active?'فعال':'غیرفعال')+'</span></td></tr>').join(''):'<tr><td colspan="4" class="empty">هنوز کالایی ثبت نشده است.</td></tr>';
+  $('dashboardProductsTable').innerHTML=products.length?products.map(p=>'<tr><td><b>'+escapeHtml(p.sku)+'</b></td><td>'+escapeHtml(p.name)+'</td><td>'+escapeHtml(p.unit)+'</td><td>'+(p.current_price_toman===null||p.current_price_toman===undefined?'ثبت نشده':fa.format(Number(p.current_price_toman))+' تومان')+'</td><td><span class="status">'+(p.is_active?'فعال':'غیرفعال')+'</span></td><td>'+(canManagePrices?'<button class="refresh price-edit" type="button" data-sku="'+escapeHtml(p.sku)+'">مدیریت قیمت</button>':'—')+'</td></tr>').join(''):'<tr><td colspan="6" class="empty">هنوز کالایی ثبت نشده است.</td></tr>';
   const labels={OPENING:'موجودی اولیه',RECEIPT:'رسید',ISSUE:'حواله',ADJUSTMENT:'تعدیل',TRANSFER_IN:'ورود انتقال',TRANSFER_OUT:'خروج انتقال',RESERVE:'رزرو',RELEASE:'آزادسازی',CONSUME:'مصرف رزرو'};
   $('inventoryMovementsTable').innerHTML=movements.length?movements.map(m=>'<tr><td>'+customerDate(m.created_at)+'</td><td>'+escapeHtml(labels[m.movement_type]||m.movement_type)+'</td><td><b>'+escapeHtml(m.sku)+'</b></td><td>'+escapeHtml(m.product_name)+'</td><td>'+escapeHtml(m.warehouse_name)+' ('+escapeHtml(m.warehouse_code)+')</td><td>'+fa.format(Number(m.quantity_delta))+'</td><td>'+escapeHtml(m.reason)+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">گردشی ثبت نشده است.</td></tr>';
  }catch(e){
@@ -386,6 +410,17 @@ function showOverview(){
 $('navCustomers').addEventListener('click',showCustomers);
 
 $('navInventory').addEventListener('click',showInventory);
+$('cancelPriceForm').addEventListener('click',()=>{$('priceFormPanel').hidden=true;$('dashboardPriceForm').reset();$('dashboardPriceError').textContent='';});
+$('dashboardProductsTable').addEventListener('click',e=>{const button=e.target.closest('.price-edit');if(button)showProductPriceEditor(button.dataset.sku);});
+$('dashboardPriceForm').addEventListener('submit',async e=>{
+ e.preventDefault();$('saveDashboardPrice').disabled=true;$('dashboardPriceError').textContent='';
+ try{
+  const sku=$('dashboardPriceSku').value;
+  await api('/api/v1/dashboard/products/'+encodeURIComponent(sku)+'/prices',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify({amount_toman:$('dashboardPriceAmount').value,notes:$('dashboardPriceNotes').value.trim()||null})});
+  toast('قیمت جدید ثبت شد و تاریخچه حفظ شد');$('dashboardPriceNotes').value='';await loadInventory();await showProductPriceEditor(sku);
+ }catch(err){$('dashboardPriceError').textContent=err.message}
+ finally{$('saveDashboardPrice').disabled=false}
+});
 $('showProductForm').addEventListener('click',()=>showInventoryPanel('productFormPanel'));
 $('showWarehouseForm').addEventListener('click',()=>showInventoryPanel('warehouseFormPanel'));
 $('showMovementForm').addEventListener('click',()=>showInventoryPanel('movementFormPanel'));
