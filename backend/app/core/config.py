@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     app_name: str = "Forushyar AI API"
-    app_version: str = "0.7.4"
+    app_version: str = "0.8.0"
     api_key: str = Field(min_length=24)
     session_secret: str = Field(min_length=40)
     database_url: str

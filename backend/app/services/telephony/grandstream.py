@@ -194,15 +194,7 @@ def normalize_recording_references(value: Any) -> list[dict[str, str]]:
                 else:
                     candidates.append(raw_item)
 
-    if isinstance(value, (list, dict)):
-        collect(value)
-    elif value:
-        for key in ("filename", "recordfile", "recordfiles", "file", "files"):
-            item = value.get(key)
-            if isinstance(item, list):
-                candidates.extend(_text(entry) for entry in item if _text(entry))
-            elif item:
-                candidates.append(_text(item))
+    elif value is not None:
         collect(value)
 
     result: list[dict[str, str]] = []
@@ -633,10 +625,22 @@ class GrandstreamTelephonyRuntime:
                 writer.write(b"DENIED\r\n")
                 await writer.drain()
                 return
-            try:
-                raw = await asyncio.wait_for(reader.read(1024 * 1024), timeout=5)
-            except asyncio.TimeoutError:
-                raw = b""
+            chunks: list[bytes] = []
+            total = 0
+            while total < 1024 * 1024:
+                try:
+                    chunk = await asyncio.wait_for(
+                        reader.read(min(65536, 1024 * 1024 - total)), timeout=5
+                    )
+                except asyncio.TimeoutError:
+                    break
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total += len(chunk)
+                if b"\n" in chunk:
+                    break
+            raw = b"".join(chunks)
             records = parse_cdr_csv(raw)
             if not records:
                 writer.write(b"INVALID\r\n")

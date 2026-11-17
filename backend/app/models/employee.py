@@ -13,6 +13,7 @@ class Employee(Base):
     __table_args__ = (
         Index("uq_employees_email_lower", text("lower(email)"), unique=True),
         Index("ix_employees_role_active", "role", "is_active"),
+        Index("uq_employees_phone_extension", "phone_extension", unique=True),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -20,7 +21,7 @@ class Employee(Base):
     email: Mapped[str] = mapped_column(String(254), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
     role: Mapped[str] = mapped_column(String(24), nullable=False, default="SALES")
-    phone_extension: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    phone_extension: Mapped[str | None] = mapped_column(String(16), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
