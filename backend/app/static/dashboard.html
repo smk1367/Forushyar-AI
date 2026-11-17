@@ -425,12 +425,7 @@ async function showOrderDetail(id){
   });
  }catch(e){toast(e.message)}
 }
-function showOrders(){
- $('overviewView').hidden=true;$('customersView').hidden=true;$('ordersView').hidden=false;
- $('navCustomers').classList.remove('active');$('navOrders').classList.add('active');$('navOverview').classList.remove('active');
- document.querySelector('.eyebrow').textContent='میزکار مدیریت / سفارش‌ها';document.querySelector('.heading').textContent='مدیریت سفارش‌ها';
- loadDashboardOrders();
-}
+function showOrders(){activateDashboardView('ordersView','navOrders','میزکار مدیریت / سفارش‌ها','مدیریت سفارش‌ها');loadDashboardOrders();}
 
 async function showProductPriceEditor(sku){
  try{
@@ -457,11 +452,7 @@ async function loadSalesReport(){
  }catch(e){$('salesReportError').textContent=e.message}
  finally{$('loadSalesReport').disabled=false}
 }
-function showReports(){
- $('overviewView').hidden=true;$('customersView').hidden=true;$('ordersView').hidden=true;$('inventoryView').hidden=true;$('conversationsView').hidden=true;$('employeesView').hidden=true;$('settingsView').hidden=true;$('reportsView').hidden=false;
- ['navOverview','navCustomers','navOrders','navInventory','navConversations','navEmployees','navSettings','navReports'].forEach(id=>$(id).classList.remove('active'));$('navReports').classList.add('active');
- document.querySelector('.eyebrow').textContent='میزکار مدیریت / گزارش فروش';document.querySelector('.heading').textContent='گزارش‌های فروش';if(!$('salesReportTo').value){const now=new Date();const fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');$('salesReportTo').value=fmt(now);const start=new Date(now);start.setDate(start.getDate()-29);$('salesReportFrom').value=fmt(start);}loadSalesReport();
-}
+function showReports(){activateDashboardView('reportsView','navReports','میزکار مدیریت / گزارش فروش','گزارش‌های فروش');if(!$('salesReportTo').value){const now=new Date();const fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');$('salesReportTo').value=fmt(now);const start=new Date(now);start.setDate(start.getDate()-29);$('salesReportFrom').value=fmt(start);}loadSalesReport();}
 async function loadSettings(){
  $('settingsSaveError').textContent='';
  try{
@@ -474,11 +465,7 @@ async function loadSettings(){
  }catch(e){$('settingsSaveError').textContent=e.message}
  try{const events=await api('/api/v1/dashboard/audit-events?limit=30');$('auditEventsTable').innerHTML=events.length?events.map(x=>'<tr><td>'+customerDate(x.created_at)+'</td><td>'+escapeHtml(x.event_type)+'</td><td>'+escapeHtml(x.resource_type)+'</td><td>'+escapeHtml(x.resource_id||'—')+'</td><td>'+escapeHtml(x.request_id||'—')+'</td></tr>').join(''):'<tr><td colspan="5" class="empty">هنوز رویداد مدیریتی ثبت نشده است.</td></tr>';}catch(e){$('auditEventsError').textContent=e.message}
 }
-function showSettings(){
- $('overviewView').hidden=true;$('customersView').hidden=true;$('ordersView').hidden=true;$('inventoryView').hidden=true;$('conversationsView').hidden=true;$('employeesView').hidden=true;$('reportsView').hidden=true;$('settingsView').hidden=false;
- ['navOverview','navCustomers','navOrders','navInventory','navConversations','navEmployees','navReports','navSettings'].forEach(id=>$(id).classList.remove('active'));$('navSettings').classList.add('active');
- document.querySelector('.eyebrow').textContent='میزکار مدیریت / تنظیمات';document.querySelector('.heading').textContent='تنظیمات سازمان';loadSettings();
-}
+function showSettings(){activateDashboardView('settingsView','navSettings','میزکار مدیریت / تنظیمات','تنظیمات سازمان');loadSettings();}
 
 async function loadEmployees(){
  $('employeesError').textContent='';$('employeeCount').textContent='در حال دریافت اطلاعات…';$('employeesTable').innerHTML='<tr><td colspan="6" class="empty">در حال بارگذاری…</td></tr>';
@@ -493,12 +480,7 @@ async function loadEmployees(){
   document.querySelectorAll('.employee-edit').forEach(b=>b.addEventListener('click',()=>editEmployee(b.dataset.id,rows)));
  }catch(e){$('employeeCount').textContent='خطا';$('employeesError').textContent=e.message;$('employeesTable').innerHTML='<tr><td colspan="6" class="empty">دریافت کارکنان ناموفق بود.</td></tr>';}
 }
-function showEmployees(){
- $('overviewView').hidden=true;$('customersView').hidden=true;$('ordersView').hidden=true;$('inventoryView').hidden=true;$('conversationsView').hidden=true;$('employeesView').hidden=false;
- ['navOverview','navCustomers','navOrders','navInventory','navConversations','navEmployees'].forEach(id=>$(id).classList.remove('active'));$('navEmployees').classList.add('active');
- document.querySelector('.eyebrow').textContent='میزکار مدیریت / کارکنان';document.querySelector('.heading').textContent='مدیریت کارکنان';
- $('employeeCreatePanel').hidden=true;$('employeeEditPanel').hidden=true;loadEmployees();
-}
+function showEmployees(){activateDashboardView('employeesView','navEmployees','میزکار مدیریت / کارکنان','مدیریت کارکنان');$('employeeCreatePanel').hidden=true;$('employeeEditPanel').hidden=true;loadEmployees();}
 function editEmployee(id,rows){
  const x=rows.find(r=>r.id===id);if(!x)return;
  $('employeeEditPanel').hidden=false;$('employeeCreatePanel').hidden=true;$('editEmployeeId').value=x.id;$('employeeEditTitle').textContent='ویرایش '+x.full_name;$('employeeEditEmail').textContent=x.email;$('editEmployeeName').value=x.full_name;$('editEmployeeRole').value=x.role;$('editEmployeeActive').value=String(x.is_active);$('employeeEditError').textContent='';$('employeePasswordError').textContent='';
@@ -542,12 +524,7 @@ async function openConversation(id){
   $('conversationDetailPanel').scrollIntoView({behavior:'smooth',block:'start'});
  }catch(e){$('conversationActionError').textContent=e.message}
 }
-function showConversations(){
- $('overviewView').hidden=true;$('customersView').hidden=true;$('ordersView').hidden=true;$('inventoryView').hidden=true;$('conversationsView').hidden=false;
- ['navOverview','navCustomers','navOrders','navInventory','navConversations'].forEach(id=>$(id).classList.remove('active'));$('navConversations').classList.add('active');
- document.querySelector('.eyebrow').textContent='میزکار مدیریت / مکالمات';document.querySelector('.heading').textContent='مرکز مکالمات';
- $('conversationDetailPanel').hidden=true;activeConversationId=null;loadConversations();
-}
+function showConversations(){activateDashboardView('conversationsView','navConversations','میزکار مدیریت / مکالمات','مرکز مکالمات');$('conversationDetailPanel').hidden=true;activeConversationId=null;loadConversations();}
 
 async function loadInventory(){
  $('inventoryError').textContent='';
@@ -585,14 +562,7 @@ async function loadInventory(){
   $('inventoryTable').innerHTML='<tr><td colspan="6" class="empty">دریافت اطلاعات انبار ناموفق بود.</td></tr>';
  }
 }
-function showInventory(){
- $('overviewView').hidden=true;$('customersView').hidden=true;$('ordersView').hidden=true;$('inventoryView').hidden=false;
- ['navOverview','navCustomers','navOrders','navInventory'].forEach(id=>$(id).classList.remove('active'));
- $('navInventory').classList.add('active');
- document.querySelector('.eyebrow').textContent='میزکار مدیریت / محصولات و انبار';
- document.querySelector('.heading').textContent='محصولات و انبار';
- loadInventory();
-}
+function showInventory(){activateDashboardView('inventoryView','navInventory','میزکار مدیریت / محصولات و انبار','محصولات و انبار');loadInventory();}
 function showInventoryPanel(id){
  ['productFormPanel','warehouseFormPanel','movementFormPanel'].forEach(x=>$(x).hidden=true);
  $(id).hidden=false;
@@ -630,23 +600,16 @@ async function loadCustomers(query=''){
   $('customersTable').innerHTML='<tr><td colspan="4" class="empty">دریافت مشتریان ناموفق بود.</td></tr>';
  }
 }
-function showCustomers(){
- $('overviewView').hidden=true;$('ordersView').hidden=true;$('customersView').hidden=false;
- $('navOrders').classList.remove('active');
- $('navCustomers').classList.add('active');
- document.querySelector('.nav button:first-child')?.classList.remove('active');
- document.querySelector('.eyebrow').textContent='میزکار مدیریت / مشتریان';
- document.querySelector('.heading').textContent='مدیریت مشتریان';
- loadCustomers($('customerSearch').value);
+function activateDashboardView(viewId,navId,sectionTitle,pageTitle){
+ ['overviewView','customersView','ordersView','inventoryView','conversationsView','employeesView','reportsView','settingsView'].forEach(id=>$(id).hidden=id!==viewId);
+ ['navOverview','navCustomers','navOrders','navInventory','navConversations','navEmployees','navReports','navSettings'].forEach(id=>$(id).classList.remove('active'));
+ $(navId).classList.add('active');
+ document.querySelector('.eyebrow').textContent=sectionTitle;
+ document.querySelector('.heading').textContent=pageTitle;
 }
-function showOverview(){
- $('ordersView').hidden=true;$('customersView').hidden=true;$('overviewView').hidden=false;
- $('navOrders').classList.remove('active');
- $('navCustomers').classList.remove('active');
- document.querySelector('.nav button:first-child')?.classList.add('active');
- document.querySelector('.eyebrow').textContent='میزکار مدیریت / نمای کلی';
- document.querySelector('.heading').textContent='داشبورد مدیریتی';
-}
+
+function showCustomers(){activateDashboardView('customersView','navCustomers','میزکار مدیریت / مشتریان','مدیریت مشتریان');loadCustomers($('customerSearch').value);}
+function showOverview(){activateDashboardView('overviewView','navOverview','میزکار مدیریت / نمای کلی','داشبورد مدیریتی');}
 $('navCustomers').addEventListener('click',showCustomers);
 
 $('navInventory').addEventListener('click',showInventory);
