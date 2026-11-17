@@ -1,6 +1,7 @@
 from datetime import datetime, time, timedelta, timezone
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +13,6 @@ from app.models.customer import Customer
 from app.models.employee import Employee
 from app.security import require_csrf
 from app.models.product import Product
-from app.models.product_price import ProductPrice
 from app.models.sales_order import SalesOrder
 from app.models.warehouse import Warehouse
 from app.services.sales_orders import (
