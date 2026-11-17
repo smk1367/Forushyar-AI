@@ -21,6 +21,7 @@ from app.security import require_csrf
 from app.services.telephony.grandstream import (
     GrandstreamTelephonyRuntime,
     normalize_recording_references,
+    parse_cdr_payload,
 )
 
 router = APIRouter(prefix="/api/v1/telephony", tags=["Grandstream UCM6202"])
@@ -285,11 +286,14 @@ async def call_recording(
 
 
 @router.post("/cdr-realtime", dependencies=[Depends(_authenticate_cdr_webhook)])
-async def receive_realtime_cdr(
-    request: Request,
-    employee: Employee = Depends(current_employee),
-):
-    # This route is authenticated by dedicated Basic Auth, not a dashboard session.
-    # Remove the default employee dependency here with a separate route registration
-    # in main.py if the application-wide router policy is ever changed.
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Webhook route registration requires dedicated no-session router")
+async def receive_realtime_cdr(request: Request):
+    """Accept HTTP/HTTPS real-time CDR callbacks using a dedicated PBX credential."""
+    raw = await request.body()
+    records = parse_cdr_payload(raw, request.headers.get("content-type", ""))
+    if not records:
+        raise HTTPException(status_code=422, detail="ساختار CDR گرنداستریم قابل شناسایی نیست")
+    try:
+        processed = await _runtime(request).ingest_records(records)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="ثبت CDR در پایگاه داده انجام نشد") from exc
+    return {"ok": True, "received": len(records), "upserted": processed}

@@ -586,7 +586,9 @@ class GrandstreamTelephonyRuntime:
                 if isinstance(bridged, dict):
                     bridged = [bridged]
                 calls = []
-                for channel, is_bridged in [*((unbridged or []), False), *((bridged or []), True)]:
+                channel_states = [(channel, False) for channel in (unbridged or [])]
+                channel_states.extend((channel, True) for channel in (bridged or []))
+                for channel, is_bridged in channel_states:
                     if not isinstance(channel, dict):
                         continue
                     caller = _text(channel.get("callernum") or channel.get("callerid1") or channel.get("callerid2"))
