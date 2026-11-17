@@ -12,7 +12,6 @@ from app.models.customer import Customer
 from app.models.employee import Employee
 from app.schemas import CustomerCreate, CustomerRead
 from app.security import require_csrf
-from app.models.employee import Employee
 from app.models.product import Product
 from app.models.sales_order import SalesOrder
 
