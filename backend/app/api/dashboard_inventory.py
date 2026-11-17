@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,6 +59,16 @@ class DashboardProductPriceCreate(BaseModel):
     amount_toman: Decimal = Field(ge=0, max_digits=18, decimal_places=2)
     notes: str | None = Field(default=None, max_length=1000)
 
+class DashboardProductCatalogRead(BaseModel):
+    id: UUID
+    sku: str
+    name: str
+    description: str | None
+    unit: str
+    is_active: bool
+    created_at: datetime
+    current_price_toman: Decimal | None = None
+
 class DashboardProductUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=240)
     description: str | None = None
@@ -77,7 +87,7 @@ class DashboardProductUpdate(BaseModel):
         return self
 
 
-@router.get("/products", response_model=list[ProductRead])
+@router.get("/products", response_model=list[DashboardProductCatalogRead])
 async def list_dashboard_products(
     q: str | None = Query(default=None, max_length=120),
     include_inactive: bool = False,
@@ -87,14 +97,36 @@ async def list_dashboard_products(
     session: AsyncSession = Depends(get_db),
 ):
     _require_role(employee, PRODUCT_READERS, "مشاهده کالاها")
-    stmt = select(Product).order_by(Product.sku).limit(limit).offset(offset)
+    stmt = (
+        select(Product, ProductPrice)
+        .outerjoin(
+            ProductPrice,
+            and_(ProductPrice.product_id == Product.id, ProductPrice.is_active.is_(True)),
+        )
+        .order_by(Product.sku)
+        .limit(limit)
+        .offset(offset)
+    )
     if not include_inactive:
         stmt = stmt.where(Product.is_active.is_(True))
     search = (q or "").strip()
     if search:
         pattern = f"%{search}%"
         stmt = stmt.where(Product.sku.ilike(pattern) | Product.name.ilike(pattern))
-    return list((await session.scalars(stmt)).all())
+    rows = (await session.execute(stmt)).all()
+    return [
+        DashboardProductCatalogRead(
+            id=product.id,
+            sku=product.sku,
+            name=product.name,
+            description=product.description,
+            unit=product.unit,
+            is_active=product.is_active,
+            created_at=product.created_at,
+            current_price_toman=price.amount if price is not None and price.currency_code == 'IRT' else None,
+        )
+        for product, price in rows
+    ]
 
 
 @router.post(
