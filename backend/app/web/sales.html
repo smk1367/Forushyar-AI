@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>فروش و سفارش | فروش‌یار</title>
+<style>
+:root{color-scheme:light;--ink:#172033;--muted:#64748b;--line:#dce3ed;--paper:#f5f7fb;--blue:#2157a6;--blue2:#e9f1ff;--green:#176b49;--red:#a52b35}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Tahoma,Arial,sans-serif;line-height:1.75}
+header{background:#15243b;color:white;padding:22px max(20px,calc((100vw - 1100px)/2));display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+header h1{font-size:21px;margin:0}header p{margin:2px 0;color:#cbd5e1;font-size:13px}
+main{max-width:1100px;margin:24px auto;padding:0 16px 48px;display:grid;gap:18px}
+.panel{background:white;border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:0 5px 18px #1c35550b}
+h2{font-size:17px;margin:0 0 14px}h3{font-size:15px;margin:0 0 6px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.field{display:grid;gap:5px}.field label{font-size:12px;color:var(--muted)}
+input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:white;color:var(--ink);font:inherit;font-size:13px;min-width:0}
+button{border:0;border-radius:8px;background:var(--blue);color:white;padding:9px 14px;font:inherit;font-size:13px;cursor:pointer}
+button.secondary{background:var(--blue2);color:var(--blue)}button.danger{background:#fae9eb;color:var(--red)}button:disabled{opacity:.5;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.muted{color:var(--muted);font-size:12px}
+#message{padding:10px 12px;border-radius:8px;background:#eef2f8;color:var(--ink);font-size:13px;display:none}
+#message.error{background:#fff0f0;color:var(--red)}#message.ok{background:#eaf7f0;color:var(--green)}
+.list{display:grid;gap:10px}.item{border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:8px}
+.item-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.tag{font-size:11px;background:#eef2f8;padding:3px 9px;border-radius:20px;color:#334155}
+.stats{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.connection{display:flex;gap:8px;align-items:end;flex-wrap:wrap}.connection .field{flex:1;min-width:220px}
+.quote-line{border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}
+.quote-line .grid{grid-template-columns:2fr 1fr 1fr 1fr auto;align-items:end}
+footer{font-size:11px;color:var(--muted);text-align:center}
+@media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.quote-line .grid{grid-template-columns:1fr 1fr}}@media(max-width:450px){.grid,.quote-line .grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>فروش و سفارش</h1><p>مدیریت پیش‌فاکتور، سفارش، پرداخت و تحویل</p></div>
+  <div class="muted" style="color:#cbd5e1">Forushyar AI · Sales v1</div>
+</header>
+<main>
+  <section class="panel">
+    <h2>اتصال امن به API</h2>
+    <div class="connection">
+      <div class="field"><label for="apiKey">کلید API</label><input id="apiKey" type="password" autocomplete="off" placeholder="X-API-Key"></div>
+      <button id="connect">اتصال و بارگذاری اطلاعات</button>
+    </div>
+    <p class="muted">کلید فقط در حافظه نشست همین مرورگر نگهداری می‌شود و در localStorage ذخیره نمی‌شود.</p>
+    <div id="message"></div>
+  </section>
+
+  <section class="panel">
+    <h2>ایجاد پیش‌فاکتور</h2>
+    <form id="quoteForm">
+      <div class="grid">
+        <div class="field"><label for="customer">مشتری</label><select id="customer" required></select></div>
+        <div class="field"><label for="warehouse">انبار</label><select id="warehouse" required></select></div>
+        <div class="field"><label for="headerDiscount">تخفیف کل سند</label><input id="headerDiscount" type="number" min="0" step="0.01" value="0"></div>
+        <div class="field"><label for="tax">مالیات (%)</label><input id="tax" type="number" min="0" max="100" step="0.01" value="0"></div>
+        <div class="field"><label for="expiry">اعتبار (روز)</label><input id="expiry" type="number" min="1" max="90" value="7"></div>
+        <div class="field"><label for="notes">توضیحات</label><input id="notes" maxlength="4000"></div>
+      </div>
+      <h3 style="margin-top:18px">اقلام پیش‌فاکتور</h3>
+      <div id="quoteLines"></div>
+      <div class="actions">
+        <button type="button" class="secondary" id="addLine">افزودن کالا</button>
+        <button type="submit">ثبت پیش‌فاکتور</button>
+        <button type="button" class="secondary" id="reload">بازخوانی اطلاعات</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="item-top"><h2>پیش‌فاکتورها</h2><button class="secondary" id="reloadQuotes">به‌روزرسانی</button></div>
+    <div class="list" id="quotes"><p class="muted">برای مشاهده، ابتدا به API متصل شوید.</p></div>
+  </section>
+
+  <section class="panel">
+    <div class="item-top"><h2>سفارش‌ها</h2><button class="secondary" id="reloadOrders">به‌روزرسانی</button></div>
+    <div class="list" id="orders"><p class="muted">برای مشاهده، ابتدا به API متصل شوید.</p></div>
+  </section>
+  <footer>تأیید پرداخت در این پنل، عملیات دستی اپراتور مجاز است؛ اتصال خودکار به درگاه پرداخت در این نسخه فعال نیست.</footer>
+</main>
+<script>
+(function(){
+  const base="/api/v1";
+  const apiKey=document.getElementById("apiKey");
+  const message=document.getElementById("message");
+  const $=id=>document.getElementById(id);
+  let customers=[],warehouses=[],products=[];
+  function say(text,kind){message.textContent=text;message.className=kind||"";message.style.display="block"}
+  function key(){return sessionStorage.getItem("forushyar-sales-api-key")||apiKey.value.trim()}
+  async function api(path,options){
+    const opts=options||{};opts.headers=Object.assign({"X-API-Key":key(),"Content-Type":"application/json"},opts.headers||{});
+    const response=await fetch(base+path,opts);let data=null;
+    try{data=await response.json()}catch(_){}
+    if(!response.ok){throw new Error((data&&data.detail)||("خطای API: "+response.status))}
+    return data;
+  }
+  function fillSelect(el,rows,label){el.replaceChildren();rows.forEach(row=>{const option=document.createElement("option");option.value=row.id;option.textContent=label(row);el.appendChild(option)})}
+  function button(label,kind,handler){const el=document.createElement("button");el.type="button";el.textContent=label;if(kind)el.className=kind;el.addEventListener("click",handler);return el}
+  function addQuoteLine(){
+    const wrap=document.createElement("div");wrap.className="quote-line";
+    const grid=document.createElement("div");grid.className="grid";
+    const productField=document.createElement("div");productField.className="field";
+    const productLabel=document.createElement("label");productLabel.textContent="کالا";
+    const productSelect=document.createElement("select");productSelect.className="line-product";productSelect.required=true;
+    productField.append(productLabel,productSelect);
+    const inputs=[
+      ["تعداد","number","line-quantity","1","0.001","0.001"],
+      ["قیمت واحد (اختیاری)","number","line-price","","0","0.01"],
+      ["تخفیف قلم","number","line-discount","0","0","0.01"]
+    ];
+    grid.appendChild(productField);
+    inputs.forEach(([label,type,cls,value,min,step])=>{
+      const field=document.createElement("div");field.className="field";
+      const caption=document.createElement("label");caption.textContent=label;
+      const input=document.createElement("input");input.type=type;input.className=cls;input.value=value;input.min=min;input.step=step;
+      if(cls==="line-quantity")input.required=true;
+      field.append(caption,input);grid.appendChild(field);
+    });
+    const remove=document.createElement("button");remove.type="button";remove.className="danger";remove.textContent="حذف";
+    remove.addEventListener("click",()=>{if(document.querySelectorAll(".quote-line").length>1)wrap.remove()});
+    const removeField=document.createElement("div");removeField.className="field";removeField.appendChild(remove);grid.appendChild(removeField);
+    wrap.appendChild(grid);$("quoteLines").appendChild(wrap);
+    fillSelect(productSelect,products,row=>row.sku+" · "+row.name);
+  }
+  function card(title,subtitle,stats){const el=document.createElement("article");el.className="item";const top=document.createElement("div");top.className="item-top";const h=document.createElement("h3");h.textContent=title;const tag=document.createElement("span");tag.className="tag";tag.textContent=subtitle;top.append(h,tag);el.appendChild(top);const row=document.createElement("div");row.className="stats";stats.forEach(value=>{const span=document.createElement("span");span.textContent=value;row.appendChild(span)});el.appendChild(row);return el}
+  async function loadMasters(){
+    [customers,warehouses,products]=await Promise.all([api("/customers?limit=200"),api("/warehouses"),api("/products")]);
+    fillSelect($("customer"),customers,row=>row.full_name+(row.phone?" · "+row.phone:""));
+    fillSelect($("warehouse"),warehouses,row=>row.code+" · "+row.name);
+    if(!$("quoteLines").children.length)addQuoteLine();
+    document.querySelectorAll(".line-product").forEach(select=>fillSelect(select,products,row=>row.sku+" · "+row.name));
+  }
+  async function loadQuotes(){
+    const rows=await api("/sales/quotes?limit=100");const target=$("quotes");target.replaceChildren();
+    if(!rows.length){target.textContent="پیش‌فاکتوری ثبت نشده است.";return}
+    rows.forEach(row=>{
+      const el=card(row.quote_number,row.status,["مشتری: "+row.customer_name_snapshot,"مبلغ: "+Number(row.grand_total).toLocaleString("fa-IR")+" "+row.currency_code,"انبار: "+row.warehouse_name_snapshot,"اقلام: "+row.lines.length]);
+      const actions=document.createElement("div");actions.className="actions";
+      if(row.status==="DRAFT")actions.appendChild(button("ارسال پیش‌فاکتور","secondary",async()=>{try{await api("/sales/quotes/"+row.id+"/send",{method:"POST"});await refresh()}catch(error){say(error.message,"error")}}));
+      if(row.status==="SENT")actions.appendChild(button("تبدیل به سفارش",null,async()=>{try{await api("/sales/quotes/"+row.id+"/convert",{method:"POST"});say("پیش‌فاکتور به سفارش تبدیل و موجودی رزرو شد.","ok");await refresh()}catch(error){say(error.message,"error")}}));
+      el.appendChild(actions);target.appendChild(el);
+    });
+  }
+  async function loadOrders(){
+    const rows=await api("/sales/orders?limit=100");const target=$("orders");target.replaceChildren();
+    if(!rows.length){target.textContent="سفارشی ثبت نشده است.";return}
+    rows.forEach(row=>{
+      const el=card(row.order_number,row.status,["مشتری: "+row.customer_name_snapshot,"پرداخت: "+row.payment_status,"مبلغ: "+Number(row.grand_total).toLocaleString("fa-IR")+" "+row.currency_code,"اقلام: "+row.items.length]);
+      row.payments.filter(p=>p.status==="PENDING").forEach(payment=>{
+        el.appendChild(button("تأیید پرداخت "+payment.payment_number,"secondary",async()=>{
+          const ref=window.prompt("شناسه پیگیری/رسید (در صورت وجود):","");if(ref===null)return;
+          try{await api("/sales/payments/"+payment.id+"/confirm",{method:"POST",body:JSON.stringify({reason:"تأیید دستی توسط اپراتور",provider_reference:ref||null})});say("پرداخت تأیید شد.","ok");await refresh()}catch(error){say(error.message,"error")}
+        }));
+      });
+      const actions=document.createElement("div");actions.className="actions";
+      if(row.status==="AWAITING_PAYMENT"){
+        actions.appendChild(button("ثبت پرداخت","secondary",async()=>{
+          const amount=window.prompt("مبلغ پرداخت به "+row.currency_code+":",String(row.grand_total));if(amount===null)return;
+          try{await api("/sales/orders/"+row.id+"/payments",{method:"POST",body:JSON.stringify({payment_method:"BANK_TRANSFER",amount:amount,idempotency_key:"ui-payment-"+crypto.randomUUID()})});say("پرداخت در وضعیت انتظار تأیید ثبت شد.","ok");await refresh()}catch(error){say(error.message,"error")}
+        }));
+        actions.appendChild(button("لغو سفارش","danger",async()=>{
+          if(!window.confirm("سفارش لغو و رزرو موجودی آزاد شود؟"))return;
+          try{await api("/sales/orders/"+row.id+"/cancel",{method:"POST",body:JSON.stringify({reason:"لغو توسط اپراتور"})});await refresh()}catch(error){say(error.message,"error")}
+        }));
+      }
+      if(row.status==="CONFIRMED")actions.appendChild(button("ثبت ارسال",null,async()=>{try{await api("/sales/orders/"+row.id+"/ship",{method:"POST",body:JSON.stringify({reason:"ارسال سفارش به مشتری"})});await refresh()}catch(error){say(error.message,"error")}}));
+      if(row.status==="SHIPPED")actions.appendChild(button("ثبت تحویل",null,async()=>{try{await api("/sales/orders/"+row.id+"/deliver",{method:"POST",body:JSON.stringify({reason:"تحویل سفارش به مشتری"})});await refresh()}catch(error){say(error.message,"error")}}));
+      el.appendChild(actions);target.appendChild(el);
+    });
+  }
+  async function refresh(){await loadQuotes();await loadOrders()}
+  $("connect").addEventListener("click",async()=>{
+    sessionStorage.setItem("forushyar-sales-api-key",apiKey.value.trim());
+    try{await loadMasters();await refresh();say("اتصال موفق بود. اطلاعات پایه و اسناد فروش بارگذاری شدند.","ok")}
+    catch(error){say(error.message,"error")}
+  });
+  $("quoteForm").addEventListener("submit",async event=>{
+    event.preventDefault();
+    try{
+      if(!key())throw new Error("ابتدا کلید API را وارد و متصل شوید.");
+      const lines=Array.from(document.querySelectorAll(".quote-line")).map(row=>{
+        const price=row.querySelector(".line-price").value.trim();
+        return {product_id:row.querySelector(".line-product").value,quantity:row.querySelector(".line-quantity").value,
+          discount_amount:row.querySelector(".line-discount").value,unit_price:price===""?null:price};
+      });
+      const body={
+        customer_id:$("customer").value,warehouse_id:$("warehouse").value,currency_code:"IRT",
+        tax_rate:$("tax").value,header_discount:$("headerDiscount").value,
+        expires_in_days:Number($("expiry").value),notes:$("notes").value||null,
+        idempotency_key:"ui-quote-"+crypto.randomUUID(),lines
+      };
+      const created=await api("/sales/quotes",{method:"POST",body:JSON.stringify(body)});
+      say("پیش‌فاکتور "+created.quote_number+" ثبت شد. برای تبدیل، ابتدا آن را ارسال کنید.","ok");
+      event.target.reset();$("quoteLines").replaceChildren();$("headerDiscount").value="0";$("tax").value="0";$("expiry").value="7";addQuoteLine();
+      await refresh();
+    }catch(error){say(error.message,"error")}
+  });
+  $("addLine").addEventListener("click",addQuoteLine);
+  $("reload").addEventListener("click",async()=>{try{await loadMasters();await refresh();say("اطلاعات به‌روز شد.","ok")}catch(error){say(error.message,"error")}});
+  $("reloadQuotes").addEventListener("click",async()=>{try{await loadQuotes()}catch(error){say(error.message,"error")}});
+  $("reloadOrders").addEventListener("click",async()=>{try{await loadOrders()}catch(error){say(error.message,"error")}});
+  const saved=sessionStorage.getItem("forushyar-sales-api-key");if(saved)apiKey.value=saved;
+})();
+</script>
+</body>
+</html>
