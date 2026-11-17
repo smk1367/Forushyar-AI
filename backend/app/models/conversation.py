@@ -13,6 +13,7 @@ class Conversation(Base):
     __table_args__ = (
         Index("ix_conversations_customer_updated", "customer_id", "updated_at"),
         Index("ix_conversations_status_updated", "status", "updated_at"),
+        Index("ix_conversations_assignee_status_updated", "assigned_employee_id", "status", "updated_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -22,6 +23,11 @@ class Conversation(Base):
     channel: Mapped[str] = mapped_column(String(20), nullable=False, default="TEXT")
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="OPEN")
     subject: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    assigned_employee_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    priority: Mapped[str] = mapped_column(String(12), nullable=False, default="NORMAL")
+    assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False

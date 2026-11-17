@@ -9,8 +9,9 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     app_name: str = "Forushyar AI API"
-    app_version: str = "0.6.0"
+    app_version: str = "0.7.4"
     api_key: str = Field(min_length=24)
+    session_secret: str = Field(min_length=40)
     database_url: str
     redis_url: str = "redis://redis:6379/0"
     cors_origins: list[str] = ["http://localhost:3000"]
