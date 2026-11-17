@@ -18,7 +18,7 @@
 .activity{display:grid;gap:15px;margin-top:18px}.activity-row{display:flex;align-items:center;gap:10px}.activity-icon{width:33px;height:33px;border-radius:10px;background:#f0f5fa;display:grid;place-items:center}.activity-row b{font-size:11px;display:block}.activity-row small{font-size:10px;color:#929daf}.activity-value{margin-right:auto;font-size:11px;font-weight:700;white-space:nowrap}
 .table-wrap{overflow:auto;margin-top:14px}table{width:100%;border-collapse:collapse;white-space:nowrap}th{text-align:right;font-size:10px;color:#98a3b3;font-weight:500;padding:10px 8px;border-bottom:1px solid #eef1f5}td{padding:13px 8px;border-bottom:1px solid #f1f3f7;font-size:11px;color:#4a5870}tbody tr:last-child td{border-bottom:0}.order-id{font-weight:700;color:#263850}.status{padding:5px 9px;border-radius:20px;font-size:10px;background:#eef7f3;color:#13836c}.status.cancelled{background:#fff0f1;color:#c34e5a}.status.pending{background:#fff6e7;color:#b67a20}.empty{text-align:center;padding:32px;color:#9aa5b5;font-size:12px}
 .login-cover{position:fixed;inset:0;background:#0d1728eF;display:none;align-items:center;justify-content:center;padding:20px;z-index:5}.login-card{width:min(420px,100%);background:white;border-radius:22px;padding:30px;box-shadow:0 25px 90px #0005}.login-logo{display:flex;align-items:center;gap:11px;margin-bottom:24px}.login-card h2{font-size:20px;margin:0 0 7px}.login-card p{font-size:12px;color:#8a96a9;margin:0 0 22px}.field{display:grid;gap:7px;margin:14px 0}.field label{font-size:11px;color:#536178}.field input{border:1px solid #e1e7ef;border-radius:10px;padding:12px;outline:none}.field input:focus{border-color:#19ad91;box-shadow:0 0 0 3px #19ad9119}.primary{width:100%;border:0;border-radius:11px;background:#0b9e83;color:white;padding:12px;font-weight:700;margin-top:8px}.error{color:#c34e5a;font-size:11px;min-height:18px;margin-top:10px}.toast{position:fixed;bottom:20px;left:20px;background:#17283b;color:white;border-radius:12px;padding:12px 17px;font-size:12px;display:none;z-index:8}
-@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}}@media(max-width:800px){.shell{grid-template-columns:1fr}.sidebar{padding:14px 16px;gap:12px}.sidebar .nav-label,.side-bottom{display:none}.nav{display:flex;overflow:auto}.nav button{white-space:nowrap;padding:9px 11px}.brand{padding:0}.main{padding:20px 15px}.grid-two{grid-template-columns:1fr}.welcome{padding:20px}.welcome-tag{display:none}}@media(max-width:520px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.kpi{padding:13px}.kpi strong{font-size:22px}.topbar{align-items:flex-start}.heading{font-size:20px}.profile .profile-text{display:none}.welcome h2{font-size:16px}.top-actions{gap:5px}.refresh{font-size:10px;padding:9px}}
+.customer-form{margin-top:15px}.customer-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.customer-form .field{margin:8px 0}.customer-form .field input{width:100%;min-width:0}.customer-row-name{font-weight:700;color:#263850}@media(max-width:760px){.customer-fields{grid-template-columns:1fr}}@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}}@media(max-width:800px){.shell{grid-template-columns:1fr}.sidebar{padding:14px 16px;gap:12px}.sidebar .nav-label,.side-bottom{display:none}.nav{display:flex;overflow:auto}.nav button{white-space:nowrap;padding:9px 11px}.brand{padding:0}.main{padding:20px 15px}.grid-two{grid-template-columns:1fr}.welcome{padding:20px}.welcome-tag{display:none}}@media(max-width:520px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.kpi{padding:13px}.kpi strong{font-size:22px}.topbar{align-items:flex-start}.heading{font-size:20px}.profile .profile-text{display:none}.welcome h2{font-size:16px}.top-actions{gap:5px}.refresh{font-size:10px;padding:9px}}
 </style>
 </head>
 <body>
@@ -27,7 +27,7 @@
  <div class="brand"><div class="brand-mark">ف</div><div><strong>فروش‌یار</strong><small>هوشمندتر بفروشید</small></div></div>
  <div><div class="nav-label">فضای کاری</div><nav class="nav">
   <button class="active"><span class="ico">⌂</span>نمای کلی</button>
-  <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">♙</span>مشتریان</button>
+  <button id="navCustomers"><span class="ico">♙</span>مشتریان</button>
   <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">▤</span>سفارش‌ها</button>
   <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">▦</span>محصولات و انبار</button>
   <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">☏</span>مکالمات</button>
@@ -39,6 +39,7 @@
 <main class="main">
  <header class="topbar"><div><div class="eyebrow">میزکار مدیریت / نمای کلی</div><h1 class="heading">داشبورد مدیریتی</h1></div>
  <div class="top-actions"><button class="refresh" id="refresh">↻ &nbsp;به‌روزرسانی</button><div class="profile"><div class="avatar" id="avatar">م</div><div class="profile-text"><b id="employeeName">کاربر</b><small id="employeeRole">در حال بررسی نشست…</small></div><button class="icon-btn" id="logout" title="خروج">↪</button></div></div></header>
+ <div id="overviewView">
  <section class="welcome"><div><h2 id="welcomeTitle">به فروش‌یار خوش آمدید</h2><p>نمایی روشن از عملکرد فروش و فعالیت‌های کسب‌وکار شما</p></div><div class="welcome-tag">● &nbsp;پنل مدیریتی هوشمند</div></section>
  <div class="section-head"><h3>شاخص‌های کلیدی کسب‌وکار</h3><span class="muted" id="updatedAt">در انتظار دریافت اطلاعات</span></div>
  <section class="kpis">
@@ -53,6 +54,42 @@
   <article class="panel"><div class="panel-title"><h3>آخرین فعالیت سفارش‌ها</h3><span class="muted">آخرین ۸ سفارش</span></div><div class="activity" id="activity"><div class="empty">در حال بارگذاری…</div></div></article>
  </section>
  <section class="panel" style="margin-top:15px"><div class="panel-title"><h3>آخرین سفارش‌ها</h3><span class="muted">نمای سریع سفارش‌های ثبت‌شده</span></div><div class="table-wrap"><table><thead><tr><th>شناسه سفارش</th><th>مشتری</th><th>وضعیت</th><th>مبلغ</th><th>تاریخ ثبت</th></tr></thead><tbody id="ordersTable"><tr><td colspan="5" class="empty">در حال بارگذاری…</td></tr></tbody></table></div></section>
+</div>
+<section id="customersView" hidden>
+ <div class="section-head" style="margin-top:8px">
+  <div><h3 style="font-size:18px;margin:0">مدیریت مشتریان</h3><div class="muted" style="margin-top:6px">فهرست مشتریان، جست‌وجو و ثبت مشتری جدید</div></div>
+  <button class="refresh" id="showCustomerForm">＋ &nbsp;مشتری جدید</button>
+ </div>
+ <section class="panel" id="customerFormPanel" hidden style="margin-bottom:15px">
+  <div class="panel-title"><h3>ثبت مشتری جدید</h3><span class="muted">اطلاعات تماس مشتری</span></div>
+  <form id="customerForm" class="customer-form">
+   <div class="customer-fields">
+    <label class="field">نام و نام خانوادگی<input id="customerFullName" required minlength="2" maxlength="200" placeholder="نام مشتری"></label>
+    <label class="field">شماره تماس<input id="customerPhone" type="tel" maxlength="32" placeholder="مثلاً 09121234567"></label>
+    <label class="field">ایمیل<input id="customerEmail" type="email" maxlength="254" placeholder="name@example.com"></label>
+   </div>
+   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button class="primary" id="saveCustomer" type="submit" style="width:auto;min-width:150px">ذخیره مشتری</button>
+    <button class="refresh" id="cancelCustomerForm" type="button">انصراف</button>
+   </div>
+   <div class="error" id="customerFormError"></div>
+  </form>
+ </section>
+ <section class="panel">
+  <form id="customerSearchForm" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+   <input id="customerSearch" type="search" maxlength="120" placeholder="جست‌وجو بر اساس نام، تلفن یا ایمیل" style="flex:1;min-width:220px;border:1px solid #e1e7ef;border-radius:10px;padding:11px 12px">
+   <button class="refresh" type="submit">جست‌وجو</button>
+   <button class="refresh" id="clearCustomerSearch" type="button">پاک کردن</button>
+  </form>
+  <div class="section-head"><h3>فهرست مشتریان</h3><span class="muted" id="customerCount">در حال دریافت اطلاعات…</span></div>
+  <div class="table-wrap">
+   <table><thead><tr><th>نام مشتری</th><th>شماره تماس</th><th>ایمیل</th><th>تاریخ ثبت</th></tr></thead>
+    <tbody id="customersTable"><tr><td colspan="4" class="empty">در حال بارگذاری…</td></tr></tbody>
+   </table>
+  </div>
+  <div class="error" id="customersError"></div>
+ </section>
+</section>
 </main></div>
 <div class="login-cover" id="loginCover"><form class="login-card" id="loginForm"><div class="login-logo"><div class="brand-mark">ف</div><div><b>فروش‌یار</b><div class="muted">ورود امن به میزکار</div></div></div><h2>خوش آمدید 👋</h2><p>برای ورود به داشبورد، اطلاعات حساب کاربری خود را وارد کنید.</p><div class="field"><label for="email">ایمیل سازمانی</label><input id="email" type="email" autocomplete="username" required placeholder="name@company.com"></div><div class="field"><label for="password">گذرواژه</label><input id="password" type="password" autocomplete="current-password" required></div><button class="primary" type="submit" id="loginButton">ورود به داشبورد</button><div class="error" id="loginError"></div></form></div>
 <div class="toast" id="toast"></div>
@@ -77,6 +114,62 @@ async function loadDashboard(){try{const d=await api('/api/v1/dashboard/overview
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginButton').disabled=true;$('loginError').textContent='';try{await api('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,password:$('password').value})});hideLogin();await loadMe();await loadDashboard()}catch(err){$('loginError').textContent=err.message}finally{$('loginButton').disabled=false}});
 $('logout').addEventListener('click',async()=>{try{await api('/api/v1/auth/logout',{method:'POST',headers:{'X-CSRF-Token':csrf()}});showLogin();toast('با موفقیت خارج شدید')}catch(e){toast(e.message)}});
 $('refresh').addEventListener('click',async()=>{if(await loadMe())await loadDashboard()});
+
+function escapeHtml(value){
+ return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function customerDate(value){
+ if(!value)return '—';
+ const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleDateString('fa-IR',{year:'numeric',month:'short',day:'numeric'});
+}
+async function loadCustomers(query=''){
+ $('customersError').textContent='';
+ $('customerCount').textContent='در حال دریافت اطلاعات…';
+ $('customersTable').innerHTML='<tr><td colspan="4" class="empty">در حال بارگذاری…</td></tr>';
+ try{
+  const params=new URLSearchParams({limit:'100'});
+  if(query.trim())params.set('q',query.trim());
+  const rows=await api('/api/v1/dashboard/customers?'+params.toString());
+  $('customerCount').textContent=fa.format(rows.length)+' مشتری';
+  if(!rows.length){$('customersTable').innerHTML='<tr><td colspan="4" class="empty">مشتری‌ای برای نمایش پیدا نشد.</td></tr>';return;}
+  $('customersTable').innerHTML=rows.map(c=>'<tr><td class="customer-row-name">'+escapeHtml(c.full_name)+'</td><td>'+escapeHtml(c.phone||'—')+'</td><td>'+escapeHtml(c.email||'—')+'</td><td>'+customerDate(c.created_at)+'</td></tr>').join('');
+ }catch(e){
+  $('customersError').textContent=e.message;
+  $('customerCount').textContent='خطا در دریافت فهرست';
+  $('customersTable').innerHTML='<tr><td colspan="4" class="empty">دریافت مشتریان ناموفق بود.</td></tr>';
+ }
+}
+function showCustomers(){
+ $('overviewView').hidden=true;$('customersView').hidden=false;
+ $('navCustomers').classList.add('active');
+ document.querySelector('.nav button:first-child')?.classList.remove('active');
+ document.querySelector('.eyebrow').textContent='میزکار مدیریت / مشتریان';
+ document.querySelector('.heading').textContent='مدیریت مشتریان';
+ loadCustomers($('customerSearch').value);
+}
+function showOverview(){
+ $('customersView').hidden=true;$('overviewView').hidden=false;
+ $('navCustomers').classList.remove('active');
+ document.querySelector('.nav button:first-child')?.classList.add('active');
+ document.querySelector('.eyebrow').textContent='میزکار مدیریت / نمای کلی';
+ document.querySelector('.heading').textContent='داشبورد مدیریتی';
+}
+$('navCustomers').addEventListener('click',showCustomers);
+$('showCustomerForm').addEventListener('click',()=>{$('customerFormPanel').hidden=false;$('customerFullName').focus();});
+$('cancelCustomerForm').addEventListener('click',()=>{$('customerFormPanel').hidden=true;$('customerForm').reset();$('customerFormError').textContent='';});
+$('customerSearchForm').addEventListener('submit',e=>{e.preventDefault();loadCustomers($('customerSearch').value);});
+$('clearCustomerSearch').addEventListener('click',()=>{$('customerSearch').value='';loadCustomers('');});
+$('customerForm').addEventListener('submit',async e=>{
+ e.preventDefault();$('saveCustomer').disabled=true;$('customerFormError').textContent='';
+ const payload={full_name:$('customerFullName').value.trim(),phone:$('customerPhone').value.trim()||null,email:$('customerEmail').value.trim()||null};
+ try{
+  await api('/api/v1/dashboard/customers',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify(payload)});
+  $('customerForm').reset();$('customerFormPanel').hidden=true;toast('مشتری با موفقیت ثبت شد');
+  await loadCustomers($('customerSearch').value);await loadDashboard();
+ }catch(err){$('customerFormError').textContent=err.message;}
+ finally{$('saveCustomer').disabled=false;}
+});
+
 (async()=>{if(await loadMe())await loadDashboard()})();
 </script>
 </body></html>
