@@ -29,7 +29,7 @@
   <button id="navOverview" class="active"><span class="ico">⌂</span>نمای کلی</button>
   <button id="navCustomers"><span class="ico">♙</span>مشتریان</button>
   <button id="navOrders"><span class="ico">▤</span>سفارش‌ها</button>
-  <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">▦</span>محصولات و انبار</button>
+  <button id="navInventory"><span class="ico">▦</span>محصولات و انبار</button>
   <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">☏</span>مکالمات</button>
   <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">♧</span>کارمندان</button>
  </nav></div>
@@ -123,6 +123,86 @@
   <div id="orderDetail"></div>
  </section>
 </section>
+
+<section id="inventoryView" hidden>
+ <div class="section-head" style="margin-top:8px">
+  <div><h3 style="font-size:18px;margin:0">محصولات و انبار</h3><div class="muted" style="margin-top:6px">مدیریت کالا، انبارها، موجودی قابل فروش و گردش عملیات</div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+   <button class="refresh" id="showProductForm">＋ کالای جدید</button>
+   <button class="refresh" id="showWarehouseForm">＋ انبار جدید</button>
+   <button class="refresh" id="showMovementForm">＋ عملیات موجودی</button>
+  </div>
+ </div>
+ <section class="panel" style="margin-bottom:15px">
+  <form id="inventoryFilterForm" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+   <input id="inventorySearch" type="search" maxlength="120" placeholder="جست‌وجوی کد یا نام کالا" style="flex:1;min-width:200px;border:1px solid #e1e7ef;border-radius:10px;padding:11px 12px">
+   <select id="inventoryWarehouseFilter" style="border:1px solid #e1e7ef;border-radius:10px;padding:11px"><option value="">همه انبارها</option></select>
+   <label style="font-size:11px;color:#58677d;display:flex;align-items:center;gap:6px"><input id="inventoryLowOnly" type="checkbox"> فقط موجودی کم (حداکثر ۵)</label>
+   <button class="refresh" type="submit">اعمال فیلتر</button>
+   <button class="refresh" id="clearInventoryFilter" type="button">پاک کردن</button>
+  </form>
+ </section>
+ <section class="panel" id="productFormPanel" hidden style="margin-bottom:15px">
+  <div class="panel-title"><h3>ثبت کالای جدید</h3><span class="muted">کد کالا باید یکتا باشد</span></div>
+  <form id="dashboardProductForm" class="customer-form">
+   <div class="customer-fields">
+    <label class="field">کد کالا (SKU)<input id="dashboardProductSku" required maxlength="80"></label>
+    <label class="field">نام کالا<input id="dashboardProductName" required maxlength="240"></label>
+    <label class="field">واحد<input id="dashboardProductUnit" required maxlength="24" value="عدد"></label>
+   </div>
+   <label class="field">توضیحات<input id="dashboardProductDescription" maxlength="1000"></label>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="saveDashboardProduct" type="submit" style="width:auto;min-width:150px">ثبت کالا</button><button class="refresh" id="cancelProductForm" type="button">انصراف</button></div>
+   <div class="error" id="dashboardProductError"></div>
+  </form>
+ </section>
+ <section class="panel" id="warehouseFormPanel" hidden style="margin-bottom:15px">
+  <div class="panel-title"><h3>ثبت انبار جدید</h3><span class="muted">کد انبار باید یکتا باشد</span></div>
+  <form id="dashboardWarehouseForm" class="customer-form">
+   <div class="customer-fields">
+    <label class="field">کد انبار<input id="dashboardWarehouseCode" required maxlength="40"></label>
+    <label class="field">نام انبار<input id="dashboardWarehouseName" required maxlength="160"></label>
+    <label class="field">شعبه<input id="dashboardWarehouseBranch" maxlength="160"></label>
+   </div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="saveDashboardWarehouse" type="submit" style="width:auto;min-width:150px">ثبت انبار</button><button class="refresh" id="cancelWarehouseForm" type="button">انصراف</button></div>
+   <div class="error" id="dashboardWarehouseError"></div>
+  </form>
+ </section>
+ <section class="panel" id="movementFormPanel" hidden style="margin-bottom:15px">
+  <div class="panel-title"><h3>ثبت عملیات انبار</h3><span class="muted">تمام عملیات با کلید تکرارناپذیری ثبت می‌شوند</span></div>
+  <form id="dashboardMovementForm" class="customer-form">
+   <div class="customer-fields">
+    <label class="field">نوع عملیات<select id="movementType"><option value="RECEIPT">رسید ورود</option><option value="ISSUE">حواله خروج</option><option value="ADJUSTMENT">تعدیل موجودی</option><option value="TRANSFER">انتقال بین انبارها</option></select></label>
+    <label class="field">کالا<select id="movementProduct" required><option value="">انتخاب کالا</option></select></label>
+    <label class="field">انبار مبدأ / مقصد<select id="movementWarehouse" required><option value="">انتخاب انبار</option></select></label>
+   </div>
+   <div class="customer-fields" id="transferDestinationWrap" hidden>
+    <label class="field">انبار مقصد انتقال<select id="movementDestination"><option value="">انتخاب انبار مقصد</option></select></label>
+   </div>
+   <div class="customer-fields">
+    <label class="field"><span id="movementQuantityLabel">تعداد</span><input id="movementQuantity" type="number" step="0.001" required placeholder="مقدار"></label>
+    <label class="field">علت عملیات<input id="movementReason" required minlength="3" maxlength="240" value="ثبت عملیات انبار"></label>
+    <label class="field">یادداشت<input id="movementNotes" maxlength="1000"></label>
+   </div>
+   <p class="hint" id="movementHelp">رسید و حواله مقدار مثبت می‌گیرند. در تعدیل، مقدار مثبت یا منفی اختلاف شمارش واقعی را وارد کنید.</p>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="saveMovement" type="submit" style="width:auto;min-width:170px">ثبت عملیات</button><button class="refresh" id="cancelMovementForm" type="button">انصراف</button></div>
+   <div class="error" id="dashboardMovementError"></div>
+  </form>
+ </section>
+ <section class="panel" style="margin-bottom:15px">
+  <div class="panel-title"><h3>مانده موجودی</h3><span class="muted" id="inventoryCount">در حال دریافت اطلاعات…</span></div>
+  <div class="table-wrap"><table><thead><tr><th>کد کالا</th><th>نام کالا</th><th>انبار</th><th>موجودی فیزیکی</th><th>رزروشده</th><th>موجودی آزاد</th></tr></thead><tbody id="inventoryTable"><tr><td colspan="6" class="empty">در حال بارگذاری…</td></tr></tbody></table></div>
+  <div class="error" id="inventoryError"></div>
+ </section>
+ <section class="panel" style="margin-bottom:15px">
+  <div class="panel-title"><h3>فهرست کالاها</h3><span class="muted" id="dashboardProductCount">در حال دریافت اطلاعات…</span></div>
+  <div class="table-wrap"><table><thead><tr><th>کد کالا</th><th>نام کالا</th><th>واحد</th><th>وضعیت</th></tr></thead><tbody id="dashboardProductsTable"><tr><td colspan="4" class="empty">در حال بارگذاری…</td></tr></tbody></table></div>
+ </section>
+ <section class="panel">
+  <div class="panel-title"><h3>آخرین گردش‌های انبار</h3><span class="muted">آخرین ۳۰ عملیات ثبت‌شده</span></div>
+  <div class="table-wrap"><table><thead><tr><th>زمان</th><th>نوع</th><th>کد کالا</th><th>شناسه کالا</th><th>مقدار تغییر</th><th>علت</th></tr></thead><tbody id="inventoryMovementsTable"><tr><td colspan="6" class="empty">در حال بارگذاری…</td></tr></tbody></table></div>
+ </section>
+</section>
+
 </main></div>
 <div class="login-cover" id="loginCover"><form class="login-card" id="loginForm"><div class="login-logo"><div class="brand-mark">ف</div><div><b>فروش‌یار</b><div class="muted">ورود امن به میزکار</div></div></div><h2>خوش آمدید 👋</h2><p>برای ورود به داشبورد، اطلاعات حساب کاربری خود را وارد کنید.</p><div class="field"><label for="email">ایمیل سازمانی</label><input id="email" type="email" autocomplete="username" required placeholder="name@company.com"></div><div class="field"><label for="password">گذرواژه</label><input id="password" type="password" autocomplete="current-password" required></div><button class="primary" type="submit" id="loginButton">ورود به داشبورد</button><div class="error" id="loginError"></div></form></div>
 <div class="toast" id="toast"></div>
@@ -146,7 +226,7 @@ $('activity').innerHTML=rows.slice(0,5).map(o=>'<div class="activity-row"><span 
 async function loadDashboard(){try{const d=await api('/api/v1/dashboard/overview');const k=d.kpis||{};[['customers',k.customers],['products',k.active_products],['employees',k.active_employees],['conversations',k.open_conversations],['ordersToday',k.orders_today]].forEach(([id,v])=>$(id).textContent=fa.format(v??0));renderChart(d.orders_by_day||[]);renderOrders(d.recent_orders||[]);$('updatedAt').textContent='آخرین به‌روزرسانی: '+new Date(d.generated_at).toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'})}catch(e){toast(e.message)}}
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginButton').disabled=true;$('loginError').textContent='';try{await api('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,password:$('password').value})});hideLogin();await loadMe();await loadDashboard()}catch(err){$('loginError').textContent=err.message}finally{$('loginButton').disabled=false}});
 $('logout').addEventListener('click',async()=>{try{await api('/api/v1/auth/logout',{method:'POST',headers:{'X-CSRF-Token':csrf()}});showLogin();toast('با موفقیت خارج شدید')}catch(e){toast(e.message)}});
-$('refresh').addEventListener('click',async()=>{if(await loadMe()){if(!$('ordersView').hidden)await loadDashboardOrders();else if(!$('customersView').hidden)await loadCustomers($('customerSearch').value);else await loadDashboard()}});
+$('refresh').addEventListener('click',async()=>{if(await loadMe()){if(!$('inventoryView').hidden)await loadInventory();else if(!$('ordersView').hidden)await loadDashboardOrders();else if(!$('customersView').hidden)await loadCustomers($('customerSearch').value);else await loadDashboard()}});
 
 
 let orderOptions=null;
@@ -203,6 +283,64 @@ function showOrders(){
  document.querySelector('.eyebrow').textContent='میزکار مدیریت / سفارش‌ها';document.querySelector('.heading').textContent='مدیریت سفارش‌ها';
  loadDashboardOrders();
 }
+
+async function loadInventory(){
+ $('inventoryError').textContent='';
+ $('inventoryCount').textContent='در حال دریافت اطلاعات…';
+ $('inventoryTable').innerHTML='<tr><td colspan="6" class="empty">در حال بارگذاری…</td></tr>';
+ try{
+  const params=new URLSearchParams({limit:'300'});
+  const query=$('inventorySearch').value.trim();
+  const warehouse=$('inventoryWarehouseFilter').value;
+  if(query)params.set('q',query);
+  if(warehouse)params.set('warehouse_id',warehouse);
+  if($('inventoryLowOnly').checked)params.set('low_stock_only','true');
+  const [rows,products,warehouses,movements]=await Promise.all([
+   api('/api/v1/dashboard/inventory?'+params.toString()),
+   api('/api/v1/dashboard/products?limit=300'),
+   api('/api/v1/dashboard/warehouses'),
+   api('/api/v1/dashboard/inventory/movements?limit=30'+(warehouse?'&warehouse_id='+encodeURIComponent(warehouse):''))
+  ]);
+  const oldWarehouse=$('inventoryWarehouseFilter').value;
+  $('inventoryWarehouseFilter').innerHTML='<option value="">همه انبارها</option>'+warehouses.map(w=>'<option value="'+escapeHtml(w.id)+'">'+escapeHtml(w.name)+' ('+escapeHtml(w.code)+')</option>').join('');
+  if(warehouses.some(w=>w.id===oldWarehouse))$('inventoryWarehouseFilter').value=oldWarehouse;
+  const fill=(id,list,placeholder,label)=>{const s=$(id),old=s.value;s.innerHTML='<option value="">'+placeholder+'</option>'+list.map(x=>'<option value="'+escapeHtml(x.id)+'">'+label(x)+'</option>').join('');if(list.some(x=>x.id===old))s.value=old};
+  fill('movementProduct',products,'انتخاب کالا',p=>escapeHtml(p.sku+' · '+p.name));
+  fill('movementWarehouse',warehouses,'انتخاب انبار',w=>escapeHtml(w.name+' · '+w.code));
+  fill('movementDestination',warehouses,'انتخاب انبار مقصد',w=>escapeHtml(w.name+' · '+w.code));
+  $('inventoryCount').textContent=fa.format(rows.length)+' رکورد مانده موجودی';
+  $('inventoryTable').innerHTML=rows.length?rows.map(x=>'<tr><td><b>'+escapeHtml(x.sku)+'</b></td><td>'+escapeHtml(x.product_name)+'</td><td>'+escapeHtml(x.warehouse_name)+'</td><td>'+fa.format(Number(x.on_hand))+'</td><td>'+fa.format(Number(x.reserved))+'</td><td><b>'+fa.format(Number(x.available))+'</b></td></tr>').join(''):'<tr><td colspan="6" class="empty">برای فیلتر انتخاب‌شده رکورد موجودی ثبت نشده است.</td></tr>';
+  $('dashboardProductCount').textContent=fa.format(products.length)+' کالا';
+  $('dashboardProductsTable').innerHTML=products.length?products.map(p=>'<tr><td><b>'+escapeHtml(p.sku)+'</b></td><td>'+escapeHtml(p.name)+'</td><td>'+escapeHtml(p.unit)+'</td><td><span class="status">'+(p.is_active?'فعال':'غیرفعال')+'</span></td></tr>').join(''):'<tr><td colspan="4" class="empty">هنوز کالایی ثبت نشده است.</td></tr>';
+  const labels={OPENING:'موجودی اولیه',RECEIPT:'رسید',ISSUE:'حواله',ADJUSTMENT:'تعدیل',TRANSFER_IN:'ورود انتقال',TRANSFER_OUT:'خروج انتقال',RESERVE:'رزرو',RELEASE:'آزادسازی',CONSUME:'مصرف رزرو'};
+  $('inventoryMovementsTable').innerHTML=movements.length?movements.map(m=>'<tr><td>'+customerDate(m.created_at)+'</td><td>'+escapeHtml(labels[m.movement_type]||m.movement_type)+'</td><td>'+escapeHtml(m.product_id)+'</td><td>'+escapeHtml(m.warehouse_id)+'</td><td>'+fa.format(Number(m.quantity_delta))+'</td><td>'+escapeHtml(m.reason)+'</td></tr>').join(''):'<tr><td colspan="6" class="empty">گردشی ثبت نشده است.</td></tr>';
+ }catch(e){
+  $('inventoryCount').textContent='خطا در دریافت اطلاعات';
+  $('inventoryError').textContent=e.message;
+  $('inventoryTable').innerHTML='<tr><td colspan="6" class="empty">دریافت اطلاعات انبار ناموفق بود.</td></tr>';
+ }
+}
+function showInventory(){
+ $('overviewView').hidden=true;$('customersView').hidden=true;$('ordersView').hidden=true;$('inventoryView').hidden=false;
+ ['navOverview','navCustomers','navOrders','navInventory'].forEach(id=>$(id).classList.remove('active'));
+ $('navInventory').classList.add('active');
+ document.querySelector('.eyebrow').textContent='میزکار مدیریت / محصولات و انبار';
+ document.querySelector('.heading').textContent='محصولات و انبار';
+ loadInventory();
+}
+function showInventoryPanel(id){
+ ['productFormPanel','warehouseFormPanel','movementFormPanel'].forEach(x=>$(x).hidden=true);
+ $(id).hidden=false;
+ $(id).scrollIntoView({behavior:'smooth',block:'start'});
+}
+function updateMovementForm(){
+ const isTransfer=$('movementType').value==='TRANSFER';
+ $('transferDestinationWrap').hidden=!isTransfer;
+ $('movementQuantityLabel').textContent=$('movementType').value==='ADJUSTMENT'?'اختلاف موجودی (+/-)':'تعداد';
+ $('movementHelp').textContent=$('movementType').value==='ADJUSTMENT'?'مقدار مثبت موجودی را افزایش و مقدار منفی موجودی را کاهش می‌دهد. موجودی منفی مجاز نیست.':isTransfer?'مقدار مثبت را وارد کنید؛ انبار مبدأ و مقصد باید متفاوت باشند.':'مقدار مثبت را وارد کنید؛ حواله بیش از موجودی آزاد پذیرفته نمی‌شود.';
+ $('movementQuantity').min=$('movementType').value==='ADJUSTMENT'?'':'0.001';
+}
+
 function escapeHtml(value){
  return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
@@ -245,6 +383,53 @@ function showOverview(){
  document.querySelector('.heading').textContent='داشبورد مدیریتی';
 }
 $('navCustomers').addEventListener('click',showCustomers);
+
+$('navInventory').addEventListener('click',showInventory);
+$('showProductForm').addEventListener('click',()=>showInventoryPanel('productFormPanel'));
+$('showWarehouseForm').addEventListener('click',()=>showInventoryPanel('warehouseFormPanel'));
+$('showMovementForm').addEventListener('click',()=>showInventoryPanel('movementFormPanel'));
+$('cancelProductForm').addEventListener('click',()=>{$('productFormPanel').hidden=true;$('dashboardProductForm').reset();$('dashboardProductError').textContent='';});
+$('cancelWarehouseForm').addEventListener('click',()=>{$('warehouseFormPanel').hidden=true;$('dashboardWarehouseForm').reset();$('dashboardWarehouseError').textContent='';});
+$('cancelMovementForm').addEventListener('click',()=>{$('movementFormPanel').hidden=true;$('dashboardMovementForm').reset();$('dashboardMovementError').textContent='';updateMovementForm();});
+$('movementType').addEventListener('change',updateMovementForm);
+$('inventoryFilterForm').addEventListener('submit',e=>{e.preventDefault();loadInventory();});
+$('clearInventoryFilter').addEventListener('click',()=>{$('inventorySearch').value='';$('inventoryWarehouseFilter').value='';$('inventoryLowOnly').checked=false;loadInventory();});
+$('dashboardProductForm').addEventListener('submit',async e=>{
+ e.preventDefault();$('saveDashboardProduct').disabled=true;$('dashboardProductError').textContent='';
+ try{
+  await api('/api/v1/dashboard/products',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify({sku:$('dashboardProductSku').value.trim(),name:$('dashboardProductName').value.trim(),unit:$('dashboardProductUnit').value.trim(),description:$('dashboardProductDescription').value.trim()||null})});
+  toast('کالا با موفقیت ثبت شد');$('dashboardProductForm').reset();$('dashboardProductUnit').value='عدد';$('productFormPanel').hidden=true';await loadInventory();
+ }catch(err){$('dashboardProductError').textContent=err.message}
+ finally{$('saveDashboardProduct').disabled=false}
+});
+$('dashboardWarehouseForm').addEventListener('submit',async e=>{
+ e.preventDefault();$('saveDashboardWarehouse').disabled=true;$('dashboardWarehouseError').textContent='';
+ try{
+  await api('/api/v1/dashboard/warehouses',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify({code:$('dashboardWarehouseCode').value.trim(),name:$('dashboardWarehouseName').value.trim(),branch_name:$('dashboardWarehouseBranch').value.trim()||null})});
+  toast('انبار با موفقیت ثبت شد');$('dashboardWarehouseForm').reset();$('warehouseFormPanel').hidden=true';await loadInventory();
+ }catch(err){$('dashboardWarehouseError').textContent=err.message}
+ finally{$('saveDashboardWarehouse').disabled=false}
+});
+$('dashboardMovementForm').addEventListener('submit',async e=>{
+ e.preventDefault();$('saveMovement').disabled=true;$('dashboardMovementError').textContent='';
+ try{
+  const type=$('movementType').value;
+  const product_id=$('movementProduct').value;
+  const warehouse_id=$('movementWarehouse').value;
+  const quantity=$('movementQuantity').value;
+  const reason=$('movementReason').value.trim();
+  const notes=$('movementNotes').value.trim()||null;
+  const key='dash-'+crypto.randomUUID();
+  let path='/api/v1/dashboard/inventory/receipts',body={product_id,warehouse_id,quantity,reason,idempotency_key:key,notes};
+  if(type==='ISSUE')path='/api/v1/dashboard/inventory/issues';
+  if(type==='ADJUSTMENT'){path='/api/v1/dashboard/inventory/adjustments';body={product_id,warehouse_id,quantity_delta:quantity,reason,idempotency_key:key,notes};}
+  if(type==='TRANSFER'){path='/api/v1/dashboard/inventory/transfers';body={product_id,from_warehouse_id:warehouse_id,to_warehouse_id:$('movementDestination').value,quantity,reason,idempotency_key:key,notes};}
+  await api(path,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify(body)});
+  toast('عملیات انبار با موفقیت ثبت شد');$('dashboardMovementForm').reset();$('movementFormPanel').hidden=true;updateMovementForm();await loadInventory();
+ }catch(err){$('dashboardMovementError').textContent=err.message}
+ finally{$('saveMovement').disabled=false}
+});
+
 $('navOrders').addEventListener('click',showOrders);
 $('showOrderForm').addEventListener('click',async()=>{try{await loadOrderOptions();if(!$('orderLines').children.length)$('orderLines').appendChild(orderLineRow());$('orderFormPanel').hidden=false}catch(e){$('orderFormError').textContent=e.message}});
 $('addOrderLine').addEventListener('click',()=>{if(orderOptions)$('orderLines').appendChild(orderLineRow())});
