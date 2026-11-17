@@ -75,9 +75,12 @@ async def list_dashboard_customers(
     q: str | None = Query(default=None, max_length=120),
     limit: int = Query(default=100, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    employee: Employee = Depends(current_employee),
     session: AsyncSession = Depends(get_db),
 ):
-    """List customers for authenticated dashboard employees."""
+    """List customers for authenticated CRM-capable dashboard employees."""
+    if employee.role not in {"ADMIN", "MANAGER", "SALES", "SUPPORT"}:
+        raise HTTPException(status_code=403, detail="سطح دسترسی برای مشاهده مشتریان کافی نیست")
     stmt = select(Customer).order_by(Customer.created_at.desc()).limit(limit).offset(offset)
     search = (q or "").strip()
     if search:
