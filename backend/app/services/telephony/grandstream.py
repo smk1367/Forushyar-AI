@@ -197,8 +197,7 @@ def normalize_recording_references(value: Any) -> list[dict[str, str]]:
                 else:
                     candidates.append(raw_item)
 
-    elif value is not None:
-        collect(value)
+    collect(value)
 
     result: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
