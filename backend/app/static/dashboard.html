@@ -33,7 +33,7 @@
   <button id="navConversations"><span class="ico">☏</span>مکالمات</button>
   <button id="navEmployees"><span class="ico">♧</span>کارمندان</button>
  </nav></div>
- <div><div class="nav-label">مدیریت</div><nav class="nav"><button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">▥</span>گزارش‌های فروش</button><button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">⚙</span>تنظیمات</button></nav></div>
+ <div><div class="nav-label">مدیریت</div><nav class="nav"><button id="navReports"><span class="ico">▥</span>گزارش‌های فروش</button><button id="navSettings"><span class="ico">⚙</span>تنظیمات</button></nav></div>
  <div class="side-bottom"><b>✦ دستیار هوشمند فروش</b><p>داده‌های فروش، مشتریان و سفارش‌ها را در یک نمای یکپارچه دنبال کنید.</p></div>
 </aside>
 <main class="main">
@@ -124,6 +124,51 @@
  </section>
 </section>
 
+<section id="reportsView" hidden>
+ <div class="section-head" style="margin-top:8px"><div><h3 style="font-size:18px;margin:0">گزارش‌های فروش</h3><div class="muted" style="margin-top:6px">تحلیل سفارش‌های ثبت‌شده، وضعیت پرداخت و محصولات پرفروش</div></div></div>
+ <section class="panel" style="margin-bottom:15px">
+  <form id="salesReportFilter" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+   <label class="field">از تاریخ<input id="salesReportFrom" type="date" required></label>
+   <label class="field">تا تاریخ<input id="salesReportTo" type="date" required></label>
+   <button class="primary" id="loadSalesReport" type="submit" style="width:auto;min-width:140px">تولید گزارش</button>
+  </form><div class="error" id="salesReportError"></div>
+ </section>
+ <div id="salesReportKpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:15px">
+  <div class="panel"><div class="muted">کل سفارش‌ها</div><h2 id="reportTotalOrders">—</h2></div>
+  <div class="panel"><div class="muted">در انتظار پرداخت</div><h2 id="reportPendingOrders">—</h2></div>
+  <div class="panel"><div class="muted">لغوشده</div><h2 id="reportCancelledOrders">—</h2></div>
+ </div>
+ <section class="panel" style="margin-bottom:15px"><div class="panel-title"><h3>ارزش سفارش‌های در انتظار پرداخت</h3><span class="muted">به تفکیک واحد پول</span></div><div id="reportPendingAmounts" class="muted">—</div><p id="reportRevenueNote" class="hint" style="margin-top:12px"></p></section>
+ <section class="panel" style="margin-bottom:15px"><div class="panel-title"><h3>روند روزانه سفارش‌ها</h3><span class="muted" id="reportDateRange">—</span></div><div class="table-wrap"><table><thead><tr><th>تاریخ</th><th>وضعیت</th><th>واحد پول</th><th>تعداد سفارش</th><th>ارزش سفارش</th></tr></thead><tbody id="salesReportDaily"><tr><td colspan="5" class="empty">بازه گزارش را انتخاب کنید.</td></tr></tbody></table></div></section>
+ <section class="panel"><div class="panel-title"><h3>۱۰ محصول برتر در سفارش‌های غیرلغوشده</h3><span class="muted">بر اساس مبلغ اقلام سفارش</span></div><div class="table-wrap"><table><thead><tr><th>کد کالا</th><th>نام کالا</th><th>تعداد</th><th>واحد پول</th><th>مبلغ اقلام</th></tr></thead><tbody id="salesReportProducts"><tr><td colspan="5" class="empty">بازه گزارش را انتخاب کنید.</td></tr></tbody></table></div></section>
+</section>
+<section id="settingsView" hidden>
+ <div class="section-head" style="margin-top:8px"><div><h3 style="font-size:18px;margin:0">تنظیمات سازمان</h3><div class="muted" style="margin-top:6px">اطلاعات پایه، ترجیحات کسب‌وکار و وضعیت اتصال سرویس‌ها</div></div></div>
+ <section class="panel" style="margin-bottom:15px">
+  <div class="panel-title"><h3>مشخصات سازمان</h3><span class="muted">اطلاعات نمایشی و ارتباطی</span></div>
+  <form id="organizationSettingsForm" class="customer-form">
+   <div class="customer-fields">
+    <label class="field">نام سازمان<input id="settingOrganizationName" required maxlength="160"></label>
+    <label class="field">تلفن سازمان<input id="settingOrganizationPhone" maxlength="32"></label>
+    <label class="field">ایمیل سازمان<input id="settingOrganizationEmail" type="email" maxlength="254"></label>
+   </div>
+   <div class="customer-fields">
+    <label class="field">واحد پول پیش‌فرض<select id="settingCurrency"><option value="IRT">تومان (IRT)</option><option value="IRR">ریال (IRR)</option></select></label>
+    <label class="field">منطقه زمانی<input id="settingTimeZone" required maxlength="80" placeholder="Asia/Tehran"></label>
+    <label class="field">تقویم نمایشی<select id="settingCalendar"><option value="JALALI">شمسی</option><option value="GREGORIAN">میلادی</option></select></label>
+   </div>
+   <div class="customer-fields">
+    <label class="field">پیشوند شماره سفارش<input id="settingOrderPrefix" required maxlength="12"></label>
+    <label class="field">هدف زمان پاسخ اولیه (دقیقه)<input id="settingConversationSla" type="number" min="1" max="10080" required></label>
+    <label class="field">آستانه هشدار موجودی<input id="settingReorderThreshold" type="number" min="0" max="1000000" required></label>
+   </div>
+   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="primary" id="saveOrganizationSettings" type="submit" style="width:auto;min-width:160px">ذخیره تنظیمات</button><span class="muted" id="settingsPermissionNote"></span></div>
+   <div class="error" id="settingsSaveError"></div>
+  </form>
+ </section>
+ <section class="panel" style="margin-bottom:15px"><div class="panel-title"><h3>وضعیت یکپارچه‌سازی‌ها</h3><span class="muted">بدون نمایش اطلاعات محرمانه</span></div><div id="settingsIntegrations" class="muted">در حال بررسی…</div><p class="hint">کلیدهای API، رمزها و tokenها از این پنل خوانده یا ذخیره نمی‌شوند؛ آن‌ها باید در متغیرهای محیطی یا Secret Manager نگهداری شوند.</p></section>
+ <section class="panel"><div class="panel-title"><h3>رویدادهای اخیر مدیریت</h3><span class="muted">ثبت تغییرات حساس</span></div><div class="table-wrap"><table><thead><tr><th>زمان</th><th>رویداد</th><th>منبع</th><th>شناسه</th><th>شناسه درخواست</th></tr></thead><tbody id="auditEventsTable"><tr><td colspan="5" class="empty">در حال دریافت رویدادها…</td></tr></tbody></table></div><div class="error" id="auditEventsError"></div></section>
+</section>
 <section id="employeesView" hidden>
  <div class="section-head" style="margin-top:8px">
   <div><h3 style="font-size:18px;margin:0">مدیریت کارکنان</h3><div class="muted" style="margin-top:6px">مدیریت حساب‌ها، نقش‌ها و وضعیت دسترسی کارکنان</div></div>
@@ -319,7 +364,7 @@ function showLogin(){ $('loginCover').style.display='flex';}
 function hideLogin(){ $('loginCover').style.display='none';}
 let currentRole='';let canManagePrices=false;
 const roleNames={ADMIN:'مدیر کل',MANAGER:'مدیر',SALES:'کارشناس فروش',SUPPORT:'پشتیبانی',WAREHOUSE:'انباردار'};
-async function loadMe(){try{const me=await api('/api/v1/auth/me');$('employeeName').textContent=me.full_name;$('employeeRole').textContent=roleNames[me.role]||me.role;$('avatar').textContent=(me.full_name||'ک').trim().charAt(0);$('welcomeTitle').textContent='سلام '+me.full_name+'، خوش آمدید';currentRole=me.role;window.currentEmployeeId=me.id;$('navConversations').hidden=!['ADMIN','MANAGER','SUPPORT','SALES'].includes(currentRole);$('navEmployees').hidden=!['ADMIN','MANAGER'].includes(currentRole);$('showEmployeeCreate').hidden=currentRole!=='ADMIN';const canManageProducts=['ADMIN','MANAGER','WAREHOUSE'].includes(currentRole);const canManageWarehouses=['ADMIN','MANAGER'].includes(currentRole);canManagePrices=['ADMIN','MANAGER'].includes(currentRole);$('showProductForm').hidden=!canManageProducts;$('showMovementForm').hidden=!canManageProducts;$('showWarehouseForm').hidden=!canManageWarehouses;hideLogin();return true}catch(e){if(!e.message.includes('وارد شوید'))toast(e.message);return false}}
+async function loadMe(){try{const me=await api('/api/v1/auth/me');$('employeeName').textContent=me.full_name;$('employeeRole').textContent=roleNames[me.role]||me.role;$('avatar').textContent=(me.full_name||'ک').trim().charAt(0);$('welcomeTitle').textContent='سلام '+me.full_name+'، خوش آمدید';currentRole=me.role;window.currentEmployeeId=me.id;$('navConversations').hidden=!['ADMIN','MANAGER','SUPPORT','SALES'].includes(currentRole);$('navEmployees').hidden=!['ADMIN','MANAGER'].includes(currentRole);$('navReports').hidden=!['ADMIN','MANAGER','SALES'].includes(currentRole);$('navSettings').hidden=!['ADMIN','MANAGER'].includes(currentRole);$('showEmployeeCreate').hidden=currentRole!=='ADMIN';const canManageProducts=['ADMIN','MANAGER','WAREHOUSE'].includes(currentRole);const canManageWarehouses=['ADMIN','MANAGER'].includes(currentRole);canManagePrices=['ADMIN','MANAGER'].includes(currentRole);$('showProductForm').hidden=!canManageProducts;$('showMovementForm').hidden=!canManageProducts;$('showWarehouseForm').hidden=!canManageWarehouses;hideLogin();return true}catch(e){if(!e.message.includes('وارد شوید'))toast(e.message);return false}}
 function renderChart(rows){const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setUTCDate(d.getUTCDate()-6+i);return d.toISOString().slice(0,10)});const map=new Map(rows.map(x=>[x.date,Number(x.count)]));const vals=days.map(d=>map.get(d)||0);const max=Math.max(1,...vals),w=620,h=180,base=145,barW=43,gap=39;let svg='<svg class="chart" viewBox="0 0 620 180" role="img" aria-label="نمودار تعداد سفارش‌ها در هفت روز اخیر">';for(let n=0;n<4;n++){const y=20+n*40;svg+='<line class="gridline" x1="20" y1="'+y+'" x2="605" y2="'+y+'"/>'}vals.forEach((v,i)=>{const bh=v/max*112,x=34+i*(barW+gap),y=base-bh,label=new Date(days[i]+'T00:00:00Z').toLocaleDateString('fa-IR',{day:'numeric',month:'short',timeZone:'UTC'});svg+='<rect class="bar" x="'+x+'" y="'+y+'" width="'+barW+'" height="'+Math.max(3,bh)+'" rx="7"/><text x="'+(x+barW/2)+'" y="166" text-anchor="middle">'+label+'</text><text x="'+(x+barW/2)+'" y="'+(y-7)+'" text-anchor="middle">'+fa.format(v)+'</text>'});svg+='</svg>';$('chartArea').innerHTML=svg}
 function statusLabel(s){const labels={DRAFT:'پیش‌نویس',CONFIRMED:'تأییدشده',CANCELLED:'لغوشده',COMPLETED:'تکمیل‌شده',PENDING:'در انتظار'};return labels[s]||s||'نامشخص'}
 function dateLabel(v){if(!v)return'—';const d=new Date(v);return isNaN(d)?'—':d.toLocaleDateString('fa-IR',{year:'numeric',month:'short',day:'numeric'})}
@@ -329,7 +374,7 @@ $('activity').innerHTML=rows.slice(0,5).map(o=>'<div class="activity-row"><span 
 async function loadDashboard(){try{const d=await api('/api/v1/dashboard/overview');const k=d.kpis||{};[['customers',k.customers],['products',k.active_products],['employees',k.active_employees],['conversations',k.open_conversations],['ordersToday',k.orders_today]].forEach(([id,v])=>$(id).textContent=fa.format(v??0));renderChart(d.orders_by_day||[]);renderOrders(d.recent_orders||[]);$('updatedAt').textContent='آخرین به‌روزرسانی: '+new Date(d.generated_at).toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'})}catch(e){toast(e.message)}}
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginButton').disabled=true;$('loginError').textContent='';try{await api('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,password:$('password').value})});hideLogin();await loadMe();await loadDashboard()}catch(err){$('loginError').textContent=err.message}finally{$('loginButton').disabled=false}});
 $('logout').addEventListener('click',async()=>{try{await api('/api/v1/auth/logout',{method:'POST',headers:{'X-CSRF-Token':csrf()}});showLogin();toast('با موفقیت خارج شدید')}catch(e){toast(e.message)}});
-$('refresh').addEventListener('click',async()=>{if(await loadMe()){if(!$('employeesView').hidden)await loadEmployees();else if(!$('conversationsView').hidden)await loadConversations();else if(!$('inventoryView').hidden)await loadInventory();else if(!$('ordersView').hidden)await loadDashboardOrders();else if(!$('customersView').hidden)await loadCustomers($('customerSearch').value);else await loadDashboard()}});
+$('refresh').addEventListener('click',async()=>{if(await loadMe()){if(!$('settingsView').hidden)await loadSettings();else if(!$('reportsView').hidden)await loadSalesReport();else if(!$('employeesView').hidden)await loadEmployees();else if(!$('conversationsView').hidden)await loadConversations();else if(!$('inventoryView').hidden)await loadInventory();else if(!$('ordersView').hidden)await loadDashboardOrders();else if(!$('customersView').hidden)await loadCustomers($('customerSearch').value);else await loadDashboard()}});
 
 
 let orderOptions=null;
@@ -397,6 +442,44 @@ async function showProductPriceEditor(sku){
   $('priceFormPanel').scrollIntoView({behavior:'smooth',block:'start'});
  }catch(e){$('dashboardPriceError').textContent=e.message}
 }
+function moneyLabel(amount,currency){const label=currency==='IRT'?'تومان':currency==='IRR'?'ریال':currency;return fa.format(Number(amount||0))+' '+label}
+async function loadSalesReport(){
+ $('salesReportError').textContent='';$('loadSalesReport').disabled=true;
+ try{
+  const from=$('salesReportFrom').value,to=$('salesReportTo').value;
+  const data=await api('/api/v1/dashboard/sales-reports/summary?'+new URLSearchParams({from_date:from,to_date:to}).toString());
+  $('reportTotalOrders').textContent=fa.format(data.total_orders);$('reportPendingOrders').textContent=fa.format(data.pending_payment_orders);$('reportCancelledOrders').textContent=fa.format(data.cancelled_orders);$('reportDateRange').textContent=data.from_date+' تا '+data.to_date;
+  $('reportPendingAmounts').innerHTML=data.pending_order_amounts_by_currency.length?data.pending_order_amounts_by_currency.map(x=>'<div style="padding:8px 0;border-bottom:1px solid #edf1f5"><b>'+moneyLabel(x.amount,x.currency_code)+'</b><span class="muted"> · '+fa.format(x.order_count)+' سفارش</span></div>').join(''):'سفارشی در انتظار پرداخت ثبت نشده است.';
+  $('reportRevenueNote').textContent=data.revenue_note;
+  const statusMap={PENDING_PAYMENT:'در انتظار پرداخت',CANCELLED:'لغوشده'};
+  $('salesReportDaily').innerHTML=data.orders_by_day.length?data.orders_by_day.map(x=>'<tr><td>'+customerDate(x.date)+'</td><td>'+escapeHtml(statusMap[x.status]||x.status)+'</td><td>'+escapeHtml(x.currency_code)+'</td><td>'+fa.format(x.order_count)+'</td><td>'+moneyLabel(x.order_amount,x.currency_code)+'</td></tr>').join(''):'<tr><td colspan="5" class="empty">در این بازه سفارشی ثبت نشده است.</td></tr>';
+  $('salesReportProducts').innerHTML=data.top_products.length?data.top_products.map(x=>'<tr><td><b>'+escapeHtml(x.sku)+'</b></td><td>'+escapeHtml(x.product_name)+'</td><td>'+fa.format(Number(x.quantity))+'</td><td>'+escapeHtml(x.currency_code)+'</td><td>'+moneyLabel(x.order_amount,x.currency_code)+'</td></tr>').join(''):'<tr><td colspan="5" class="empty">محصولی در سفارش‌های این بازه وجود ندارد.</td></tr>';
+ }catch(e){$('salesReportError').textContent=e.message}
+ finally{$('loadSalesReport').disabled=false}
+}
+function showReports(){
+ $('overviewView').hidden=true;$('customersView').hidden=true;$('ordersView').hidden=true;$('inventoryView').hidden=true;$('conversationsView').hidden=true;$('employeesView').hidden=true;$('settingsView').hidden=true;$('reportsView').hidden=false;
+ ['navOverview','navCustomers','navOrders','navInventory','navConversations','navEmployees','navSettings','navReports'].forEach(id=>$(id).classList.remove('active'));$('navReports').classList.add('active');
+ document.querySelector('.eyebrow').textContent='میزکار مدیریت / گزارش فروش';document.querySelector('.heading').textContent='گزارش‌های فروش';loadSalesReport();
+}
+async function loadSettings(){
+ $('settingsSaveError').textContent='';
+ try{
+  const data=await api('/api/v1/dashboard/settings');const v=data.settings;
+  $('settingOrganizationName').value=v.organization_name.value;$('settingOrganizationPhone').value=v.organization_phone.value;$('settingOrganizationEmail').value=v.organization_email.value;
+  $('settingCurrency').value=v.default_currency.value;$('settingTimeZone').value=v.time_zone.value;$('settingCalendar').value=v.calendar_system.value;$('settingOrderPrefix').value=v.default_order_prefix.value;
+  $('settingConversationSla').value=v.conversation_sla_minutes.value;$('settingReorderThreshold').value=v.product_reorder_threshold.value;
+  const readOnly=currentRole!=='ADMIN';document.querySelectorAll('#organizationSettingsForm input,#organizationSettingsForm select').forEach(x=>x.disabled=readOnly);$('saveOrganizationSettings').hidden=readOnly;$('settingsPermissionNote').textContent=readOnly?'دسترسی شما فقط برای مشاهده تنظیمات است.':'تغییرات با ثبت رویداد مدیریتی ذخیره می‌شوند.';
+  const i=data.integrations;$('settingsIntegrations').innerHTML='<div style="padding:8px 0">دستیار هوشمند: <b>'+(i.ai_assistant_configured?'پیکربندی شده':'پیکربندی نشده')+'</b></div><div style="padding:8px 0">نوع ارائه‌دهنده: '+escapeHtml(i.ai_provider_type)+'</div><div style="padding:8px 0">مدل: '+escapeHtml(i.ai_model||'—')+'</div><div style="padding:8px 0">محل نگهداری secretها: '+escapeHtml(i.secrets_location)+'</div><div class="hint">'+escapeHtml(data.security_note)+'</div>';
+ }catch(e){$('settingsSaveError').textContent=e.message}
+ try{const events=await api('/api/v1/dashboard/audit-events?limit=30');$('auditEventsTable').innerHTML=events.length?events.map(x=>'<tr><td>'+customerDate(x.created_at)+'</td><td>'+escapeHtml(x.event_type)+'</td><td>'+escapeHtml(x.resource_type)+'</td><td>'+escapeHtml(x.resource_id||'—')+'</td><td>'+escapeHtml(x.request_id||'—')+'</td></tr>').join(''):'<tr><td colspan="5" class="empty">هنوز رویداد مدیریتی ثبت نشده است.</td></tr>';}catch(e){$('auditEventsError').textContent=e.message}
+}
+function showSettings(){
+ $('overviewView').hidden=true;$('customersView').hidden=true;$('ordersView').hidden=true;$('inventoryView').hidden=true;$('conversationsView').hidden=true;$('employeesView').hidden=true;$('reportsView').hidden=true;$('settingsView').hidden=false;
+ ['navOverview','navCustomers','navOrders','navInventory','navConversations','navEmployees','navReports','navSettings'].forEach(id=>$(id).classList.remove('active'));$('navSettings').classList.add('active');
+ document.querySelector('.eyebrow').textContent='میزکار مدیریت / تنظیمات';document.querySelector('.heading').textContent='تنظیمات سازمان';loadSettings();
+}
+
 async function loadEmployees(){
  $('employeesError').textContent='';$('employeeCount').textContent='در حال دریافت اطلاعات…';$('employeesTable').innerHTML='<tr><td colspan="6" class="empty">در حال بارگذاری…</td></tr>';
  try{
@@ -569,6 +652,16 @@ $('navCustomers').addEventListener('click',showCustomers);
 $('navInventory').addEventListener('click',showInventory);
 $('navConversations').addEventListener('click',showConversations);
 $('navEmployees').addEventListener('click',showEmployees);
+$('navReports').addEventListener('click',showReports);
+$('navSettings').addEventListener('click',showSettings);
+$('salesReportFilter').addEventListener('submit',e=>{e.preventDefault();loadSalesReport()});
+$('organizationSettingsForm').addEventListener('submit',async e=>{
+ e.preventDefault();$('saveOrganizationSettings').disabled=true;$('settingsSaveError').textContent='';
+ try{
+  const values={organization_name:$('settingOrganizationName').value.trim(),organization_phone:$('settingOrganizationPhone').value.trim(),organization_email:$('settingOrganizationEmail').value.trim(),default_currency:$('settingCurrency').value,time_zone:$('settingTimeZone').value.trim(),calendar_system:$('settingCalendar').value,default_order_prefix:$('settingOrderPrefix').value.trim(),conversation_sla_minutes:Number($('settingConversationSla').value),product_reorder_threshold:Number($('settingReorderThreshold').value)};
+  const result=await api('/api/v1/dashboard/settings',{method:'PUT',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify({values})});toast(fa.format(result.updated_count)+' تنظیم ذخیره شد');await loadSettings();
+ }catch(err){$('settingsSaveError').textContent=err.message}finally{$('saveOrganizationSettings').disabled=false}
+});
 $('showEmployeeCreate').addEventListener('click',()=>{if(currentRole!=='ADMIN')return;$('employeeCreatePanel').hidden=false;$('employeeEditPanel').hidden=true;$('newEmployeeName').focus()});
 $('cancelEmployeeCreate').addEventListener('click',()=>{$('employeeCreatePanel').hidden=true;$('employeeCreateForm').reset();$('employeeCreateError').textContent=''});
 $('cancelEmployeeEdit').addEventListener('click',()=>{$('employeeEditPanel').hidden=true;$('employeeEditForm').reset();$('employeePasswordForm').reset()});
