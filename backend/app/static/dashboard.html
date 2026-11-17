@@ -366,6 +366,7 @@ async function loadConversations(){
  }catch(e){$('conversationCount').textContent='خطا';$('conversationsError').textContent=e.message;$('conversationsTable').innerHTML='<tr><td colspan="8" class="empty">دریافت مکالمات ناموفق بود.</td></tr>';}
 }
 async function loadConversationAgents(){
+ if(currentRole==='SALES')return;
  if(!conversationAgents.length)conversationAgents=await api('/api/v1/dashboard/conversation-agents');
  const s=$('conversationAssignee'),old=s.value;
  const list=currentRole==='SUPPORT'?conversationAgents.filter(x=>x.id===(window.currentEmployeeId||'')):conversationAgents;
@@ -376,7 +377,7 @@ async function openConversation(id){
  try{
   activeConversationId=id;$('conversationActionError').textContent='';$('conversationReplyError').textContent='';$('conversationDetailPanel').hidden=false;
   const [item,messages]=await Promise.all([api('/api/v1/dashboard/conversations/'+encodeURIComponent(id)),api('/api/v1/dashboard/conversations/'+encodeURIComponent(id)+'/messages?limit=300')]);
-  await loadConversationAgents();
+  await loadConversationAgents();$('assignConversation').hidden=currentRole==='SALES';$('conversationAssignee').disabled=currentRole==='SALES';$('conversationPriority').disabled=currentRole==='SALES';
   $('conversationDetailTitle').textContent=item.subject||'مکالمه بدون موضوع';$('conversationDetailMeta').textContent=(item.customer_name||'مشتری ناشناس')+' · '+(item.customer_phone||'بدون تلفن')+' · '+(channelLabels[item.channel]||item.channel);
   $('conversationPriority').value=item.priority||'NORMAL';$('conversationAssignee').value=item.assigned_employee_id||'';
   $('conversationMessages').innerHTML=messages.length?messages.map(m=>'<article class="panel" style="padding:12px;background:'+(m.role==='user'?'#f7fafc':'#f0fbf7')+'"><div style="display:flex;justify-content:space-between;gap:10px"><b style="font-size:11px">'+(m.role==='user'?'مشتری':m.provider==='dashboard-agent'?'اپراتور':'دستیار هوشمند')+'</b><small class="muted">'+customerDate(m.created_at)+'</small></div><p style="font-size:12px;line-height:2;white-space:pre-wrap;margin:8px 0 0">'+escapeHtml(m.content)+'</p></article>').join(''):'<div class="empty">هنوز پیامی ثبت نشده است.</div>';
