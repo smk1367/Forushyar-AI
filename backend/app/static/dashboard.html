@@ -137,7 +137,7 @@
   <form id="inventoryFilterForm" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
    <input id="inventorySearch" type="search" maxlength="120" placeholder="جست‌وجوی کد یا نام کالا" style="flex:1;min-width:200px;border:1px solid #e1e7ef;border-radius:10px;padding:11px 12px">
    <select id="inventoryWarehouseFilter" style="border:1px solid #e1e7ef;border-radius:10px;padding:11px"><option value="">همه انبارها</option></select>
-   <label style="font-size:11px;color:#58677d;display:flex;align-items:center;gap:6px"><input id="inventoryLowOnly" type="checkbox"> فقط موجودی کم (حداکثر ۵)</label>
+   <label style="font-size:11px;color:#58677d;display:flex;align-items:center;gap:6px"><input id="inventoryLowOnly" type="checkbox"> فقط کالاهای ناموجود</label>
    <button class="refresh" type="submit">اعمال فیلتر</button>
    <button class="refresh" id="clearInventoryFilter" type="button">پاک کردن</button>
   </form>
@@ -199,7 +199,7 @@
  </section>
  <section class="panel">
   <div class="panel-title"><h3>آخرین گردش‌های انبار</h3><span class="muted">آخرین ۳۰ عملیات ثبت‌شده</span></div>
-  <div class="table-wrap"><table><thead><tr><th>زمان</th><th>نوع</th><th>کد کالا</th><th>شناسه کالا</th><th>مقدار تغییر</th><th>علت</th></tr></thead><tbody id="inventoryMovementsTable"><tr><td colspan="6" class="empty">در حال بارگذاری…</td></tr></tbody></table></div>
+  <div class="table-wrap"><table><thead><tr><th>زمان</th><th>نوع</th><th>کد کالا</th><th>نام کالا</th><th>انبار</th><th>مقدار تغییر</th><th>علت</th></tr></thead><tbody id="inventoryMovementsTable"><tr><td colspan="7" class="empty">در حال بارگذاری…</td></tr></tbody></table></div>
  </section>
 </section>
 
@@ -215,8 +215,9 @@ function csrf(){return document.cookie.split('; ').find(x=>x.startsWith('forushy
 async function api(path,options={}){const res=await fetch(path,{credentials:'same-origin',...options,headers:{...(options.headers||{})}});if(res.status===401){showLogin();throw new Error('لطفاً وارد شوید')}if(!res.ok){let m='خطا در دریافت اطلاعات';try{m=(await res.json()).detail||m}catch{}throw new Error(m)}return res.status===204?null:res.json()}
 function showLogin(){ $('loginCover').style.display='flex';}
 function hideLogin(){ $('loginCover').style.display='none';}
+let currentRole='';
 const roleNames={ADMIN:'مدیر کل',MANAGER:'مدیر',SALES:'کارشناس فروش',SUPPORT:'پشتیبانی',WAREHOUSE:'انباردار'};
-async function loadMe(){try{const me=await api('/api/v1/auth/me');$('employeeName').textContent=me.full_name;$('employeeRole').textContent=roleNames[me.role]||me.role;$('avatar').textContent=(me.full_name||'ک').trim().charAt(0);$('welcomeTitle').textContent='سلام '+me.full_name+'، خوش آمدید';hideLogin();return true}catch(e){if(!e.message.includes('وارد شوید'))toast(e.message);return false}}
+async function loadMe(){try{const me=await api('/api/v1/auth/me');$('employeeName').textContent=me.full_name;$('employeeRole').textContent=roleNames[me.role]||me.role;$('avatar').textContent=(me.full_name||'ک').trim().charAt(0);$('welcomeTitle').textContent='سلام '+me.full_name+'، خوش آمدید';currentRole=me.role;const canManageProducts=['ADMIN','MANAGER','WAREHOUSE'].includes(currentRole);const canManageWarehouses=['ADMIN','MANAGER'].includes(currentRole);$('showProductForm').hidden=!canManageProducts;$('showMovementForm').hidden=!canManageProducts;$('showWarehouseForm').hidden=!canManageWarehouses;hideLogin();return true}catch(e){if(!e.message.includes('وارد شوید'))toast(e.message);return false}}
 function renderChart(rows){const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setUTCDate(d.getUTCDate()-6+i);return d.toISOString().slice(0,10)});const map=new Map(rows.map(x=>[x.date,Number(x.count)]));const vals=days.map(d=>map.get(d)||0);const max=Math.max(1,...vals),w=620,h=180,base=145,barW=43,gap=39;let svg='<svg class="chart" viewBox="0 0 620 180" role="img" aria-label="نمودار تعداد سفارش‌ها در هفت روز اخیر">';for(let n=0;n<4;n++){const y=20+n*40;svg+='<line class="gridline" x1="20" y1="'+y+'" x2="605" y2="'+y+'"/>'}vals.forEach((v,i)=>{const bh=v/max*112,x=34+i*(barW+gap),y=base-bh,label=new Date(days[i]+'T00:00:00Z').toLocaleDateString('fa-IR',{day:'numeric',month:'short',timeZone:'UTC'});svg+='<rect class="bar" x="'+x+'" y="'+y+'" width="'+barW+'" height="'+Math.max(3,bh)+'" rx="7"/><text x="'+(x+barW/2)+'" y="166" text-anchor="middle">'+label+'</text><text x="'+(x+barW/2)+'" y="'+(y-7)+'" text-anchor="middle">'+fa.format(v)+'</text>'});svg+='</svg>';$('chartArea').innerHTML=svg}
 function statusLabel(s){const labels={DRAFT:'پیش‌نویس',CONFIRMED:'تأییدشده',CANCELLED:'لغوشده',COMPLETED:'تکمیل‌شده',PENDING:'در انتظار'};return labels[s]||s||'نامشخص'}
 function dateLabel(v){if(!v)return'—';const d=new Date(v);return isNaN(d)?'—':d.toLocaleDateString('fa-IR',{year:'numeric',month:'short',day:'numeric'})}
@@ -294,7 +295,7 @@ async function loadInventory(){
   const warehouse=$('inventoryWarehouseFilter').value;
   if(query)params.set('q',query);
   if(warehouse)params.set('warehouse_id',warehouse);
-  if($('inventoryLowOnly').checked)params.set('low_stock_only','true');
+  if($('inventoryLowOnly').checked)params.set('out_of_stock_only','true');
   const [rows,products,warehouses,movements]=await Promise.all([
    api('/api/v1/dashboard/inventory?'+params.toString()),
    api('/api/v1/dashboard/products?limit=300'),
@@ -313,7 +314,7 @@ async function loadInventory(){
   $('dashboardProductCount').textContent=fa.format(products.length)+' کالا';
   $('dashboardProductsTable').innerHTML=products.length?products.map(p=>'<tr><td><b>'+escapeHtml(p.sku)+'</b></td><td>'+escapeHtml(p.name)+'</td><td>'+escapeHtml(p.unit)+'</td><td><span class="status">'+(p.is_active?'فعال':'غیرفعال')+'</span></td></tr>').join(''):'<tr><td colspan="4" class="empty">هنوز کالایی ثبت نشده است.</td></tr>';
   const labels={OPENING:'موجودی اولیه',RECEIPT:'رسید',ISSUE:'حواله',ADJUSTMENT:'تعدیل',TRANSFER_IN:'ورود انتقال',TRANSFER_OUT:'خروج انتقال',RESERVE:'رزرو',RELEASE:'آزادسازی',CONSUME:'مصرف رزرو'};
-  $('inventoryMovementsTable').innerHTML=movements.length?movements.map(m=>'<tr><td>'+customerDate(m.created_at)+'</td><td>'+escapeHtml(labels[m.movement_type]||m.movement_type)+'</td><td>'+escapeHtml(m.product_id)+'</td><td>'+escapeHtml(m.warehouse_id)+'</td><td>'+fa.format(Number(m.quantity_delta))+'</td><td>'+escapeHtml(m.reason)+'</td></tr>').join(''):'<tr><td colspan="6" class="empty">گردشی ثبت نشده است.</td></tr>';
+  $('inventoryMovementsTable').innerHTML=movements.length?movements.map(m=>'<tr><td>'+customerDate(m.created_at)+'</td><td>'+escapeHtml(labels[m.movement_type]||m.movement_type)+'</td><td><b>'+escapeHtml(m.sku)+'</b></td><td>'+escapeHtml(m.product_name)+'</td><td>'+escapeHtml(m.warehouse_name)+' ('+escapeHtml(m.warehouse_code)+')</td><td>'+fa.format(Number(m.quantity_delta))+'</td><td>'+escapeHtml(m.reason)+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">گردشی ثبت نشده است.</td></tr>';
  }catch(e){
   $('inventoryCount').textContent='خطا در دریافت اطلاعات';
   $('inventoryError').textContent=e.message;
@@ -398,7 +399,7 @@ $('dashboardProductForm').addEventListener('submit',async e=>{
  e.preventDefault();$('saveDashboardProduct').disabled=true;$('dashboardProductError').textContent='';
  try{
   await api('/api/v1/dashboard/products',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify({sku:$('dashboardProductSku').value.trim(),name:$('dashboardProductName').value.trim(),unit:$('dashboardProductUnit').value.trim(),description:$('dashboardProductDescription').value.trim()||null})});
-  toast('کالا با موفقیت ثبت شد');$('dashboardProductForm').reset();$('dashboardProductUnit').value='عدد';$('productFormPanel').hidden=true';await loadInventory();
+  toast('کالا با موفقیت ثبت شد');$('dashboardProductForm').reset();$('dashboardProductUnit').value='عدد';$('productFormPanel').hidden=true;await loadInventory();
  }catch(err){$('dashboardProductError').textContent=err.message}
  finally{$('saveDashboardProduct').disabled=false}
 });
@@ -406,7 +407,7 @@ $('dashboardWarehouseForm').addEventListener('submit',async e=>{
  e.preventDefault();$('saveDashboardWarehouse').disabled=true;$('dashboardWarehouseError').textContent='';
  try{
   await api('/api/v1/dashboard/warehouses',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify({code:$('dashboardWarehouseCode').value.trim(),name:$('dashboardWarehouseName').value.trim(),branch_name:$('dashboardWarehouseBranch').value.trim()||null})});
-  toast('انبار با موفقیت ثبت شد');$('dashboardWarehouseForm').reset();$('warehouseFormPanel').hidden=true';await loadInventory();
+  toast('انبار با موفقیت ثبت شد');$('dashboardWarehouseForm').reset();$('warehouseFormPanel').hidden=true;await loadInventory();
  }catch(err){$('dashboardWarehouseError').textContent=err.message}
  finally{$('saveDashboardWarehouse').disabled=false}
 });
