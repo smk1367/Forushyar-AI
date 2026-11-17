@@ -16,6 +16,7 @@ from app.db.session import get_db
 from app.models.audit_event import AuditEvent
 from app.models.employee import Employee
 from app.models.system_setting import SystemSetting
+from app.security import require_csrf
 from app.services.audit import add_audit_event
 
 router = APIRouter(
@@ -122,7 +123,7 @@ async def read_dashboard_settings(
     }
 
 
-@router.put("/settings")
+@router.put("/settings", dependencies=[Depends(require_csrf)])
 async def update_dashboard_settings(
     payload: SettingsUpdateRequest,
     request: Request,
