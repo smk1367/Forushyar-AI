@@ -270,7 +270,7 @@
   <form id="inventoryFilterForm" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
    <input id="inventorySearch" type="search" maxlength="120" placeholder="جست‌وجوی کد یا نام کالا" style="flex:1;min-width:200px;border:1px solid #e1e7ef;border-radius:10px;padding:11px 12px">
    <select id="inventoryWarehouseFilter" style="border:1px solid #e1e7ef;border-radius:10px;padding:11px"><option value="">همه انبارها</option></select>
-   <label style="font-size:11px;color:#58677d;display:flex;align-items:center;gap:6px"><input id="inventoryLowOnly" type="checkbox"> فقط کالاهای ناموجود</label>
+   <label style="font-size:11px;color:#58677d;display:flex;align-items:center;gap:6px"><input id="inventoryLowOnly" type="checkbox"> فقط کالاهای کمتر از آستانه</label>
    <button class="refresh" type="submit">اعمال فیلتر</button>
    <button class="refresh" id="clearInventoryFilter" type="button">پاک کردن</button>
   </form>
@@ -536,7 +536,7 @@ async function loadInventory(){
   const warehouse=$('inventoryWarehouseFilter').value;
   if(query)params.set('q',query);
   if(warehouse)params.set('warehouse_id',warehouse);
-  if($('inventoryLowOnly').checked)params.set('out_of_stock_only','true');
+  if($('inventoryLowOnly').checked)params.set('below_reorder_threshold_only','true');
   const [rows,products,warehouses,movements]=await Promise.all([
    api('/api/v1/dashboard/inventory?'+params.toString()),
    api('/api/v1/dashboard/products?limit=300'),
