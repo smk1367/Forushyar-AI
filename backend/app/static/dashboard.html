@@ -131,6 +131,16 @@ const $=id=>document.getElementById(id);
 const fa=new Intl.NumberFormat('fa-IR');
 const money=(v,c='IRR')=>{const n=Number(v||0);return new Intl.NumberFormat('fa-IR',{maximumFractionDigits:0}).format(n)+' '+(c==='IRR'?'ریال':c)};
 function toast(s){const t=$('toast');t.textContent=s;t.style.display='block';setTimeout(()=>t.style.display='none',2600)}
+function createIdempotencyToken(){
+ if(globalThis.crypto && typeof globalThis.crypto.randomUUID==='function')return globalThis.createIdempotencyToken();
+ if(globalThis.crypto && typeof globalThis.crypto.getRandomValues==='function'){
+  const bytes=new Uint8Array(16);globalThis.crypto.getRandomValues(bytes);
+  bytes[6]=(bytes[6]&0x0f)|0x40;bytes[8]=(bytes[8]&0x3f)|0x80;
+  const hex=Array.from(bytes,b=>b.toString(16).padStart(2,'0'));
+  return hex.slice(0,4).join('')+'-'+hex.slice(4,6).join('')+'-'+hex.slice(6,8).join('')+'-'+hex.slice(8,10).join('')+'-'+hex.slice(10).join('');
+ }
+ return 'fallback-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)+'-'+Math.random().toString(36).slice(2);
+}
 function csrf(){return document.cookie.split('; ').find(x=>x.startsWith('forushyar_csrf='))?.split('=').slice(1).join('=')||''}
 async function api(path,options={}){const res=await fetch(path,{credentials:'same-origin',...options,headers:{...(options.headers||{})}});if(res.status===401){showLogin();throw new Error('لطفاً وارد شوید')}if(!res.ok){let m='خطا در دریافت اطلاعات';try{m=(await res.json()).detail||m}catch{}throw new Error(m)}return res.status===204?null:res.json()}
 function showLogin(){ $('loginCover').style.display='flex';}
@@ -191,7 +201,7 @@ async function showOrderDetail(id){
    if(!reason||reason.trim().length<3)return;
    const button=$('cancelThisOrder');button.disabled=true;
    try{
-    await api('/api/v1/dashboard/orders/'+encodeURIComponent(id)+'/cancel',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf(),'Idempotency-Key':'cancel-'+crypto.randomUUID()},body:JSON.stringify({reason:reason.trim()})});
+    await api('/api/v1/dashboard/orders/'+encodeURIComponent(id)+'/cancel',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf(),'Idempotency-Key':'cancel-'+createIdempotencyToken()},body:JSON.stringify({reason:reason.trim()})});
     toast('سفارش لغو و موجودی رزروشده آزاد شد');await loadDashboardOrders();await loadDashboard();await showOrderDetail(id);
    }catch(e){$('cancelOrderError').textContent=e.message;button.disabled=false}
   });
@@ -257,7 +267,7 @@ $('orderForm').addEventListener('submit',async e=>{
  if(lines.some(x=>!x.sku)){ $('orderFormError').textContent='برای همه ردیف‌ها کالا انتخاب کنید';$('saveOrder').disabled=false;return}
  const payload={customer_id:$('orderCustomer').value||null,warehouse_id:$('orderWarehouse').value||null,lines};
  try{
-  const order=await api('/api/v1/dashboard/orders',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf(),'Idempotency-Key':'order-'+crypto.randomUUID()},body:JSON.stringify(payload)});
+  const order=await api('/api/v1/dashboard/orders',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf(),'Idempotency-Key':'order-'+createIdempotencyToken()},body:JSON.stringify(payload)});
   $('orderForm').reset();$('orderLines').innerHTML='';$('orderFormPanel').hidden=true;
   toast('سفارش ثبت و موجودی آن رزرو شد');await loadDashboardOrders();await loadDashboard();await showOrderDetail(order.id);
  }catch(err){$('orderFormError').textContent=err.message}
