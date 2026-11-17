@@ -25,6 +25,7 @@ from app.schemas import (
     ProductCreate,
     ProductRead,
     ProductPriceRead,
+    StockMovementRead,
     StockTransferCreate,
     StockTransferRead,
     WarehouseCreate,
