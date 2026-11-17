@@ -76,4 +76,7 @@ async def logout(response: Response):
 
 @router.get("/me", response_model=EmployeeSessionRead)
 async def me(employee: Employee = Depends(current_employee)):
-    return EmployeeSessionRead(id=employee.id, full_name=employee.full_name, email=employee.email, role=employee.role)
+    return EmployeeSessionRead(
+        id=employee.id, full_name=employee.full_name, email=employee.email,
+        role=employee.role, phone_extension=employee.phone_extension,
+    )

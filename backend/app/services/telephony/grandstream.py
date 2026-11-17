@@ -173,25 +173,37 @@ def parse_cdr_payload(raw: bytes, content_type: str = "") -> list[dict[str, Any]
 def normalize_recording_references(value: Any) -> list[dict[str, str]]:
     """Extract file references while rejecting traversal and path separators."""
     candidates: list[str] = []
-    if isinstance(value, list):
-        candidates = [_text(item) for item in value if _text(item)]
-    elif isinstance(value, dict):
+
+    def collect(item: Any) -> None:
+        if isinstance(item, list):
+            for nested in item:
+                collect(nested)
+        elif isinstance(item, dict):
+            for key in ("filename", "recordfile", "recordfiles", "file", "files"):
+                if key in item:
+                    collect(item[key])
+        elif item not in (None, ""):
+            raw_item = _text(item)
+            try:
+                parsed_item = json.loads(raw_item)
+            except (json.JSONDecodeError, TypeError):
+                candidates.extend(line.strip() for line in raw_item.splitlines() if line.strip())
+            else:
+                if isinstance(parsed_item, (list, dict)):
+                    collect(parsed_item)
+                else:
+                    candidates.append(raw_item)
+
+    if isinstance(value, (list, dict)):
+        collect(value)
+    elif value:
         for key in ("filename", "recordfile", "recordfiles", "file", "files"):
             item = value.get(key)
             if isinstance(item, list):
                 candidates.extend(_text(entry) for entry in item if _text(entry))
             elif item:
                 candidates.append(_text(item))
-    elif value:
-        raw = _text(value)
-        try:
-            parsed = json.loads(raw)
-            if isinstance(parsed, list):
-                candidates.extend(_text(item) for item in parsed if _text(item))
-            else:
-                candidates.extend(line.strip() for line in raw.splitlines() if line.strip())
-        except (json.JSONDecodeError, TypeError):
-            candidates.extend(line.strip() for line in raw.splitlines() if line.strip())
+        collect(value)
 
     result: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()

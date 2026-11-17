@@ -156,6 +156,10 @@ async def list_calls(
             | TelephonyCall.destination_number.ilike(pattern)
             | TelephonyCall.caller_name.ilike(pattern)
         )
+    if employee.role == "SALES":
+        if not employee.phone_extension:
+            raise HTTPException(status_code=403, detail="داخلی تلفنی برای حساب شما تعریف نشده است")
+        statement = statement.where(TelephonyCall.extension == employee.phone_extension)
     calls = list((await session.scalars(statement)).all())
     return {"items": [_call_json(call) for call in calls], "limit": limit, "offset": offset}
 
@@ -168,7 +172,7 @@ async def get_call(
 ):
     _require_role(employee, {"ADMIN", "MANAGER", "SALES", "SUPPORT"})
     call = await session.get(TelephonyCall, call_id)
-    if call is None:
+    if call is None or (employee.role == "SALES" and call.extension != employee.phone_extension):
         raise HTTPException(status_code=404, detail="تماس پیدا نشد")
     return _call_json(call)
 
@@ -189,6 +193,10 @@ async def customer_calls(
         .limit(limit)
         .offset(offset)
     )
+    if employee.role == "SALES":
+        if not employee.phone_extension:
+            raise HTTPException(status_code=403, detail="داخلی تلفنی برای حساب شما تعریف نشده است")
+        statement = statement.where(TelephonyCall.extension == employee.phone_extension)
     calls = list((await session.scalars(statement)).all())
     return {"items": [_call_json(call) for call in calls], "limit": limit, "offset": offset}
 
@@ -243,7 +251,7 @@ async def update_call_outcome(
 ):
     _require_role(employee, {"ADMIN", "MANAGER", "SALES"})
     call = await session.get(TelephonyCall, call_id, with_for_update=True)
-    if call is None:
+    if call is None or (employee.role == "SALES" and call.extension != employee.phone_extension):
         raise HTTPException(status_code=404, detail="تماس پیدا نشد")
     call.outcome = payload.outcome.strip()
     call.call_notes = payload.notes.strip()
@@ -261,7 +269,7 @@ async def call_recording(
 ):
     _require_role(employee, {"ADMIN", "MANAGER", "SALES", "SUPPORT"})
     call = await session.get(TelephonyCall, call_id)
-    if call is None:
+    if call is None or (employee.role == "SALES" and call.extension != employee.phone_extension):
         raise HTTPException(status_code=404, detail="تماس پیدا نشد")
     references = normalize_recording_references(call.recordings or [])
     if recording_index < 0 or recording_index >= len(references):
