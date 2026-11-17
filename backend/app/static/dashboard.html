@@ -26,7 +26,7 @@
 <aside class="sidebar">
  <div class="brand"><div class="brand-mark">ف</div><div><strong>فروش‌یار</strong><small>هوشمندتر بفروشید</small></div></div>
  <div><div class="nav-label">فضای کاری</div><nav class="nav">
-  <button class="active"><span class="ico">⌂</span>نمای کلی</button>
+  <button id="navOverview" class="active"><span class="ico">⌂</span>نمای کلی</button>
   <button id="navCustomers"><span class="ico">♙</span>مشتریان</button>
   <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">▤</span>سفارش‌ها</button>
   <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">▦</span>محصولات و انبار</button>
@@ -113,7 +113,7 @@ $('activity').innerHTML=rows.slice(0,5).map(o=>'<div class="activity-row"><span 
 async function loadDashboard(){try{const d=await api('/api/v1/dashboard/overview');const k=d.kpis||{};[['customers',k.customers],['products',k.active_products],['employees',k.active_employees],['conversations',k.open_conversations],['ordersToday',k.orders_today]].forEach(([id,v])=>$(id).textContent=fa.format(v??0));renderChart(d.orders_by_day||[]);renderOrders(d.recent_orders||[]);$('updatedAt').textContent='آخرین به‌روزرسانی: '+new Date(d.generated_at).toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'})}catch(e){toast(e.message)}}
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginButton').disabled=true;$('loginError').textContent='';try{await api('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,password:$('password').value})});hideLogin();await loadMe();await loadDashboard()}catch(err){$('loginError').textContent=err.message}finally{$('loginButton').disabled=false}});
 $('logout').addEventListener('click',async()=>{try{await api('/api/v1/auth/logout',{method:'POST',headers:{'X-CSRF-Token':csrf()}});showLogin();toast('با موفقیت خارج شدید')}catch(e){toast(e.message)}});
-$('refresh').addEventListener('click',async()=>{if(await loadMe())await loadDashboard()});
+$('refresh').addEventListener('click',async()=>{if(await loadMe()){if(!$('customersView').hidden)await loadCustomers($('customerSearch').value);else await loadDashboard()}});
 
 function escapeHtml(value){
  return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -155,6 +155,7 @@ function showOverview(){
  document.querySelector('.heading').textContent='داشبورد مدیریتی';
 }
 $('navCustomers').addEventListener('click',showCustomers);
+$('navOverview').addEventListener('click',showOverview);
 $('showCustomerForm').addEventListener('click',()=>{$('customerFormPanel').hidden=false;$('customerFullName').focus();});
 $('cancelCustomerForm').addEventListener('click',()=>{$('customerFormPanel').hidden=true;$('customerForm').reset();$('customerFormError').textContent='';});
 $('customerSearchForm').addEventListener('submit',e=>{e.preventDefault();loadCustomers($('customerSearch').value);});
