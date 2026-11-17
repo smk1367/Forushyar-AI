@@ -16,6 +16,7 @@ from app.models.employee import Employee
 from app.models.inventory import InventoryBalance, StockMovement
 from app.models.product import Product
 from app.models.product_price import ProductPrice
+from app.models.system_setting import SystemSetting
 from app.models.warehouse import Warehouse
 from app.schemas import (
     InventoryAdjustment,
@@ -288,7 +289,7 @@ async def create_dashboard_warehouse(
 async def list_dashboard_inventory(
     q: str | None = Query(default=None, max_length=120),
     warehouse_id: UUID | None = None,
-    out_of_stock_only: bool = False,
+    below_reorder_threshold_only: bool = False,
     limit: int = Query(default=200, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     employee: Employee = Depends(current_employee),
@@ -306,8 +307,10 @@ async def list_dashboard_inventory(
     )
     if warehouse_id:
         stmt = stmt.where(InventoryBalance.warehouse_id == warehouse_id)
-    if out_of_stock_only:
-        stmt = stmt.where(InventoryBalance.on_hand - InventoryBalance.reserved <= 0)
+    if below_reorder_threshold_only:
+        threshold_row = await session.get(SystemSetting, "product_reorder_threshold")
+        threshold = Decimal(str(threshold_row.value)) if threshold_row is not None else Decimal("0")
+        stmt = stmt.where(InventoryBalance.on_hand - InventoryBalance.reserved <= threshold)
     search = (q or "").strip()
     if search:
         pattern = f"%{search}%"
