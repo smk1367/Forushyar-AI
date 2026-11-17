@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -11,6 +12,7 @@ from app.api.auth import current_employee
 from app.db.session import get_db
 from app.models.employee import Employee
 from app.models.sales_order import SalesOrder, SalesOrderLine
+from app.models.system_setting import SystemSetting
 
 router = APIRouter(
     prefix="/api/v1/dashboard/sales-reports",
@@ -49,7 +51,12 @@ async def get_dashboard_sales_report_summary(
     session: AsyncSession = Depends(get_db),
 ):
     _require_report_role(employee)
+    timezone_row = await session.get(SystemSetting, "time_zone")
+    timezone_name = str(timezone_row.value) if timezone_row is not None else "Asia/Tehran"
+    local_zone = ZoneInfo(timezone_name)
     start_at, end_at, start_day, end_day = _date_window(from_date, to_date)
+    start_at = datetime.combine(start_day, time.min, tzinfo=local_zone).astimezone(timezone.utc)
+    end_at = datetime.combine(end_day + timedelta(days=1), time.min, tzinfo=local_zone).astimezone(timezone.utc)
     filters = (SalesOrder.created_at >= start_at, SalesOrder.created_at < end_at)
 
     status_stmt = (
@@ -76,17 +83,18 @@ async def get_dashboard_sales_report_summary(
         for state, currency, count, amount in status_rows if state == "CANCELLED"
     ]
 
+    local_order_day = func.date(func.timezone(timezone_name, SalesOrder.created_at))
     daily_stmt = (
         select(
-            func.date(SalesOrder.created_at).label("order_day"),
+            local_order_day.label("order_day"),
             SalesOrder.status,
             SalesOrder.currency_code,
             func.count(SalesOrder.id),
             func.coalesce(func.sum(SalesOrder.subtotal), 0),
         )
         .where(*filters)
-        .group_by(func.date(SalesOrder.created_at), SalesOrder.status, SalesOrder.currency_code)
-        .order_by(func.date(SalesOrder.created_at), SalesOrder.status, SalesOrder.currency_code)
+        .group_by(local_order_day, SalesOrder.status, SalesOrder.currency_code)
+        .order_by(local_order_day, SalesOrder.status, SalesOrder.currency_code)
     )
     daily_rows = (await session.execute(daily_stmt)).all()
     daily = [
@@ -118,6 +126,7 @@ async def get_dashboard_sales_report_summary(
         "from_date": start_day.isoformat(),
         "to_date": end_day.isoformat(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "time_zone": timezone_name,
         "total_orders": total_orders,
         "pending_payment_orders": pending_count,
         "cancelled_orders": cancelled_count,
