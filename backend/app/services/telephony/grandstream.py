@@ -179,9 +179,12 @@ def normalize_recording_references(value: Any) -> list[dict[str, str]]:
             for nested in item:
                 collect(nested)
         elif isinstance(item, dict):
-            for key in ("filename", "recordfile", "recordfiles", "file", "files"):
-                if key in item:
-                    collect(item[key])
+            if item.get("filedir") and item.get("filename"):
+                candidates.append(_text(item["filedir"]) + "/" + _text(item["filename"]))
+            else:
+                for key in ("filename", "recordfile", "recordfiles", "file", "files"):
+                    if key in item:
+                        collect(item[key])
         elif item not in (None, ""):
             raw_item = _text(item)
             try:

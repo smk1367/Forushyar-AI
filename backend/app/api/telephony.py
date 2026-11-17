@@ -115,7 +115,7 @@ async def telephony_status(request: Request, employee: Employee = Depends(curren
 
 @router.get("/live")
 async def live_calls(request: Request, employee: Employee = Depends(current_employee)):
-    _require_role(employee, {"ADMIN", "MANAGER", "SALES", "SUPPORT"})
+    _require_role(employee, {"ADMIN", "MANAGER", "SUPPORT"})
     runtime = _runtime(request)
     return {"items": runtime.live_calls(), "updated_at": runtime.status()["live_updated_at"]}
 
