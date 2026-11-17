@@ -28,7 +28,7 @@
  <div><div class="nav-label">فضای کاری</div><nav class="nav">
   <button id="navOverview" class="active"><span class="ico">⌂</span>نمای کلی</button>
   <button id="navCustomers"><span class="ico">♙</span>مشتریان</button>
-  <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">▤</span>سفارش‌ها</button>
+  <button id="navOrders"><span class="ico">▤</span>سفارش‌ها</button>
   <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">▦</span>محصولات و انبار</button>
   <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">☏</span>مکالمات</button>
   <button disabled title="در نسخه بعدی فعال می‌شود"><span class="ico">♧</span>کارمندان</button>
@@ -90,6 +90,39 @@
   <div class="error" id="customersError"></div>
  </section>
 </section>
+<section id="ordersView" hidden>
+ <div class="section-head" style="margin-top:8px">
+  <div><h3 style="font-size:18px;margin:0">مدیریت سفارش‌ها</h3><div class="muted" style="margin-top:6px">ثبت سفارش با قیمت جاری و رزرو امن موجودی</div></div>
+  <button class="refresh" id="showOrderForm">＋ &nbsp;ثبت سفارش</button>
+ </div>
+ <section class="panel" id="orderFormPanel" hidden style="margin-bottom:15px">
+  <div class="panel-title"><h3>سفارش جدید</h3><span class="muted">قیمت و موجودی در زمان ثبت از سیستم خوانده می‌شود</span></div>
+  <form id="orderForm" class="customer-form">
+   <div class="customer-fields" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+    <label class="field">مشتری<select id="orderCustomer"><option value="">مشتری مهمان</option></select></label>
+    <label class="field">انبار<select id="orderWarehouse"><option value="">انتخاب خودکار از انبارهای فعال</option></select></label>
+   </div>
+   <div class="section-head"><h3>اقلام سفارش</h3><button class="refresh" id="addOrderLine" type="button">＋ افزودن کالا</button></div>
+   <div id="orderLines"></div>
+   <div class="error" id="orderFormError"></div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="primary" id="saveOrder" type="submit" style="width:auto;min-width:160px">ثبت و رزرو موجودی</button><button class="refresh" id="cancelOrderForm" type="button">انصراف</button></div>
+  </form>
+ </section>
+ <section class="panel">
+  <form id="orderSearchForm" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+   <input id="orderSearch" type="search" maxlength="120" placeholder="جست‌وجو بر اساس نام مشتری یا شناسه سفارش" style="flex:1;min-width:220px;border:1px solid #e1e7ef;border-radius:10px;padding:11px 12px">
+   <select id="orderStatusFilter" style="border:1px solid #e1e7ef;border-radius:10px;padding:11px"><option value="">همه وضعیت‌ها</option><option value="PENDING_PAYMENT">در انتظار پرداخت</option><option value="CANCELLED">لغوشده</option></select>
+   <button class="refresh" type="submit">جست‌وجو</button>
+  </form>
+  <div class="section-head"><h3>فهرست سفارش‌ها</h3><span class="muted" id="orderCount">در حال دریافت اطلاعات…</span></div>
+  <div class="table-wrap"><table><thead><tr><th>شناسه</th><th>مشتری</th><th>وضعیت</th><th>مبلغ</th><th>تاریخ</th><th>جزئیات</th></tr></thead><tbody id="dashboardOrdersTable"><tr><td colspan="6" class="empty">در حال بارگذاری…</td></tr></tbody></table></div>
+  <div class="error" id="ordersError"></div>
+ </section>
+ <section class="panel" id="orderDetailPanel" hidden style="margin-top:15px">
+  <div class="panel-title"><h3>جزئیات سفارش</h3><button class="refresh" id="closeOrderDetail" type="button">بستن</button></div>
+  <div id="orderDetail"></div>
+ </section>
+</section>
 </main></div>
 <div class="login-cover" id="loginCover"><form class="login-card" id="loginForm"><div class="login-logo"><div class="brand-mark">ف</div><div><b>فروش‌یار</b><div class="muted">ورود امن به میزکار</div></div></div><h2>خوش آمدید 👋</h2><p>برای ورود به داشبورد، اطلاعات حساب کاربری خود را وارد کنید.</p><div class="field"><label for="email">ایمیل سازمانی</label><input id="email" type="email" autocomplete="username" required placeholder="name@company.com"></div><div class="field"><label for="password">گذرواژه</label><input id="password" type="password" autocomplete="current-password" required></div><button class="primary" type="submit" id="loginButton">ورود به داشبورد</button><div class="error" id="loginError"></div></form></div>
 <div class="toast" id="toast"></div>
@@ -113,8 +146,63 @@ $('activity').innerHTML=rows.slice(0,5).map(o=>'<div class="activity-row"><span 
 async function loadDashboard(){try{const d=await api('/api/v1/dashboard/overview');const k=d.kpis||{};[['customers',k.customers],['products',k.active_products],['employees',k.active_employees],['conversations',k.open_conversations],['ordersToday',k.orders_today]].forEach(([id,v])=>$(id).textContent=fa.format(v??0));renderChart(d.orders_by_day||[]);renderOrders(d.recent_orders||[]);$('updatedAt').textContent='آخرین به‌روزرسانی: '+new Date(d.generated_at).toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'})}catch(e){toast(e.message)}}
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginButton').disabled=true;$('loginError').textContent='';try{await api('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,password:$('password').value})});hideLogin();await loadMe();await loadDashboard()}catch(err){$('loginError').textContent=err.message}finally{$('loginButton').disabled=false}});
 $('logout').addEventListener('click',async()=>{try{await api('/api/v1/auth/logout',{method:'POST',headers:{'X-CSRF-Token':csrf()}});showLogin();toast('با موفقیت خارج شدید')}catch(e){toast(e.message)}});
-$('refresh').addEventListener('click',async()=>{if(await loadMe()){if(!$('customersView').hidden)await loadCustomers($('customerSearch').value);else await loadDashboard()}});
+$('refresh').addEventListener('click',async()=>{if(await loadMe()){if(!$('ordersView').hidden)await loadDashboardOrders();else if(!$('customersView').hidden)await loadCustomers($('customerSearch').value);else await loadDashboard()}});
 
+
+let orderOptions=null;
+function orderStatusLabel(s){return s==='PENDING_PAYMENT'?'در انتظار پرداخت':s==='CANCELLED'?'لغوشده':s||'نامشخص'}
+function orderLineRow(){
+ const wrap=document.createElement('div');wrap.className='customer-fields order-line-row';wrap.style.gridTemplateColumns='minmax(0,2fr) minmax(100px,1fr) auto';wrap.style.alignItems='end';wrap.style.marginBottom='10px';
+ wrap.innerHTML='<label class="field">کالا<select class="order-sku" required><option value="">انتخاب کالا</option></select></label><label class="field">تعداد<input class="order-qty" type="number" min="0.000001" step="0.000001" value="1" required></label><button class="refresh remove-order-line" type="button">حذف</button>';
+ const select=wrap.querySelector('.order-sku');
+ (orderOptions?.products||[]).forEach(p=>{const o=document.createElement('option');o.value=p.sku;o.textContent=p.sku+' — '+p.name;select.appendChild(o)});
+ wrap.querySelector('.remove-order-line').addEventListener('click',()=>{if(document.querySelectorAll('.order-line-row').length>1)wrap.remove()});
+ return wrap;
+}
+async function loadOrderOptions(){
+ if(orderOptions)return orderOptions;
+ orderOptions=await api('/api/v1/dashboard/order-options');
+ const fill=(id,items,label)=>{const s=$(id);items.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=label(x);s.appendChild(o)})};
+ fill('orderCustomer',orderOptions.customers,x=>x.full_name+(x.phone?' · '+x.phone:''));
+ fill('orderWarehouse',orderOptions.warehouses,x=>x.code+' — '+x.name);
+ return orderOptions;
+}
+async function loadDashboardOrders(){
+ $('ordersError').textContent='';$('orderCount').textContent='در حال دریافت اطلاعات…';
+ $('dashboardOrdersTable').innerHTML='<tr><td colspan="6" class="empty">در حال بارگذاری…</td></tr>';
+ try{
+  const p=new URLSearchParams({limit:'100'});
+  if($('orderSearch').value.trim())p.set('q',$('orderSearch').value.trim());
+  if($('orderStatusFilter').value)p.set('status',$('orderStatusFilter').value);
+  const rows=await api('/api/v1/dashboard/orders?'+p.toString());
+  $('orderCount').textContent=fa.format(rows.length)+' سفارش';
+  if(!rows.length){$('dashboardOrdersTable').innerHTML='<tr><td colspan="6" class="empty">سفارشی برای نمایش پیدا نشد.</td></tr>';return}
+  $('dashboardOrdersTable').innerHTML=rows.map(o=>'<tr><td class="order-id">#'+escapeHtml(o.id.slice(0,8))+'</td><td>'+escapeHtml(o.customer_name||'مشتری مهمان')+'</td><td><span class="status '+(o.status==='CANCELLED'?'cancelled':'pending')+'">'+orderStatusLabel(o.status)+'</span></td><td>'+money(o.subtotal,o.currency_code)+'</td><td>'+dateLabel(o.created_at)+'</td><td><button class="refresh order-detail-button" data-order-id="'+escapeHtml(o.id)+'" type="button">مشاهده</button></td></tr>').join('');
+  document.querySelectorAll('.order-detail-button').forEach(b=>b.addEventListener('click',()=>showOrderDetail(b.dataset.orderId)));
+ }catch(e){$('ordersError').textContent=e.message;$('orderCount').textContent='خطا';}
+}
+async function showOrderDetail(id){
+ try{
+  const o=await api('/api/v1/dashboard/orders/'+encodeURIComponent(id));
+  $('orderDetailPanel').hidden=false;
+  $('orderDetail').innerHTML='<p><b>شناسه:</b> '+escapeHtml(o.id)+'</p><p><b>مشتری:</b> '+escapeHtml(o.customer_name||'مشتری مهمان')+'</p><p><b>وضعیت:</b> '+orderStatusLabel(o.status)+'</p><p><b>مبلغ:</b> '+money(o.subtotal,o.currency_code)+'</p><div class="table-wrap"><table><thead><tr><th>کد کالا</th><th>نام کالا</th><th>تعداد</th><th>مبلغ واحد</th><th>جمع</th><th>رزرو</th></tr></thead><tbody>'+o.lines.map(l=>'<tr><td>'+escapeHtml(l.sku)+'</td><td>'+escapeHtml(l.product_name)+'</td><td>'+escapeHtml(l.quantity)+'</td><td>'+money(l.unit_price,l.currency_code)+'</td><td>'+money(l.line_total,l.currency_code)+'</td><td>'+l.allocations.map(a=>escapeHtml(a.warehouse_code)+' · '+escapeHtml(a.quantity)+' ('+escapeHtml(a.status)+')').join('<br>')+'</td></tr>').join('')+'</tbody></table></div><div style="margin-top:12px">'+(o.status==='PENDING_PAYMENT'?'<button class="refresh" id="cancelThisOrder" type="button">لغو سفارش و آزادسازی رزرو</button>':'')+'</div><div class="error" id="cancelOrderError"></div>';
+  if(o.status==='PENDING_PAYMENT')$('cancelThisOrder').addEventListener('click',async()=>{
+   const reason=prompt('دلیل لغو سفارش را وارد کنید (حداقل ۳ نویسه):');
+   if(!reason||reason.trim().length<3)return;
+   const button=$('cancelThisOrder');button.disabled=true;
+   try{
+    await api('/api/v1/dashboard/orders/'+encodeURIComponent(id)+'/cancel',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf(),'Idempotency-Key':'cancel-'+crypto.randomUUID()},body:JSON.stringify({reason:reason.trim()})});
+    toast('سفارش لغو و موجودی رزروشده آزاد شد');await loadDashboardOrders();await loadDashboard();await showOrderDetail(id);
+   }catch(e){$('cancelOrderError').textContent=e.message;button.disabled=false}
+  });
+ }catch(e){toast(e.message)}
+}
+function showOrders(){
+ $('overviewView').hidden=true;$('customersView').hidden=true;$('ordersView').hidden=false;
+ $('navCustomers').classList.remove('active');$('navOrders').classList.add('active');$('navOverview').classList.remove('active');
+ document.querySelector('.eyebrow').textContent='میزکار مدیریت / سفارش‌ها';document.querySelector('.heading').textContent='مدیریت سفارش‌ها';
+ loadDashboardOrders();
+}
 function escapeHtml(value){
  return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
@@ -140,7 +228,8 @@ async function loadCustomers(query=''){
  }
 }
 function showCustomers(){
- $('overviewView').hidden=true;$('customersView').hidden=false;
+ $('overviewView').hidden=true;$('ordersView').hidden=true;$('customersView').hidden=false;
+ $('navOrders').classList.remove('active');
  $('navCustomers').classList.add('active');
  document.querySelector('.nav button:first-child')?.classList.remove('active');
  document.querySelector('.eyebrow').textContent='میزکار مدیریت / مشتریان';
@@ -148,13 +237,33 @@ function showCustomers(){
  loadCustomers($('customerSearch').value);
 }
 function showOverview(){
- $('customersView').hidden=true;$('overviewView').hidden=false;
+ $('ordersView').hidden=true;$('customersView').hidden=true;$('overviewView').hidden=false;
+ $('navOrders').classList.remove('active');
  $('navCustomers').classList.remove('active');
  document.querySelector('.nav button:first-child')?.classList.add('active');
  document.querySelector('.eyebrow').textContent='میزکار مدیریت / نمای کلی';
  document.querySelector('.heading').textContent='داشبورد مدیریتی';
 }
 $('navCustomers').addEventListener('click',showCustomers);
+$('navOrders').addEventListener('click',showOrders);
+$('showOrderForm').addEventListener('click',async()=>{try{await loadOrderOptions();if(!$('orderLines').children.length)$('orderLines').appendChild(orderLineRow());$('orderFormPanel').hidden=false}catch(e){$('orderFormError').textContent=e.message}});
+$('addOrderLine').addEventListener('click',()=>{if(orderOptions)$('orderLines').appendChild(orderLineRow())});
+$('cancelOrderForm').addEventListener('click',()=>{$('orderFormPanel').hidden=true;$('orderForm').reset();$('orderLines').innerHTML='';$('orderFormError').textContent='';});
+$('orderSearchForm').addEventListener('submit',e=>{e.preventDefault();loadDashboardOrders()});
+$('closeOrderDetail').addEventListener('click',()=>$('orderDetailPanel').hidden=true);
+$('orderForm').addEventListener('submit',async e=>{
+ e.preventDefault();$('saveOrder').disabled=true;$('orderFormError').textContent='';
+ const lines=[...document.querySelectorAll('.order-line-row')].map(r=>({sku:r.querySelector('.order-sku').value,quantity:r.querySelector('.order-qty').value}));
+ if(lines.some(x=>!x.sku)){ $('orderFormError').textContent='برای همه ردیف‌ها کالا انتخاب کنید';$('saveOrder').disabled=false;return}
+ const payload={customer_id:$('orderCustomer').value||null,warehouse_id:$('orderWarehouse').value||null,lines};
+ try{
+  const order=await api('/api/v1/dashboard/orders',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf(),'Idempotency-Key':'order-'+crypto.randomUUID()},body:JSON.stringify(payload)});
+  $('orderForm').reset();$('orderLines').innerHTML='';$('orderFormPanel').hidden=true;
+  toast('سفارش ثبت و موجودی آن رزرو شد');await loadDashboardOrders();await loadDashboard();await showOrderDetail(order.id);
+ }catch(err){$('orderFormError').textContent=err.message}
+ finally{$('saveOrder').disabled=false}
+});
+
 $('navOverview').addEventListener('click',showOverview);
 $('showCustomerForm').addEventListener('click',()=>{$('customerFormPanel').hidden=false;$('customerFullName').focus();});
 $('cancelCustomerForm').addEventListener('click',()=>{$('customerFormPanel').hidden=true;$('customerForm').reset();$('customerFormError').textContent='';});
