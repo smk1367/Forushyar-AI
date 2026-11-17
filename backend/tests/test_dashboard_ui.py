@@ -16,6 +16,9 @@ def test_dashboard_page_is_served():
     assert "/api/v1/auth/login" in response.text
     assert "/api/v1/dashboard/overview" in response.text
     assert 'id="navCustomers"' in response.text
+    assert 'id="navOrders"' in response.text
+    assert 'id="ordersView"' in response.text
+    assert "/api/v1/dashboard/orders" in response.text
     assert "/api/v1/dashboard/customers" in response.text
     assert "مدیریت مشتریان" in response.text
 
