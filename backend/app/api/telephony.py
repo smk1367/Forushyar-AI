@@ -115,9 +115,14 @@ async def telephony_status(request: Request, employee: Employee = Depends(curren
 
 @router.get("/live")
 async def live_calls(request: Request, employee: Employee = Depends(current_employee)):
-    _require_role(employee, {"ADMIN", "MANAGER", "SUPPORT"})
+    _require_role(employee, {"ADMIN", "MANAGER", "SALES", "SUPPORT"})
     runtime = _runtime(request)
-    return {"items": runtime.live_calls(), "updated_at": runtime.status()["live_updated_at"]}
+    calls = runtime.live_calls()
+    if employee.role == "SALES":
+        if not employee.phone_extension:
+            raise HTTPException(status_code=403, detail="داخلی تلفنی برای حساب شما تعریف نشده است")
+        calls = [call for call in calls if call.get("extension") == employee.phone_extension]
+    return {"items": calls, "updated_at": runtime.status()["live_updated_at"]}
 
 
 @router.get("/calls")

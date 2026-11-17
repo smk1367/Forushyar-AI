@@ -601,14 +601,33 @@ class GrandstreamTelephonyRuntime:
                     caller = _text(channel.get("callernum") or channel.get("callerid1") or channel.get("callerid2"))
                     connected = _text(channel.get("connectednum") or channel.get("callerid2"))
                     inbound = bool(channel.get("inbound_trunk_name")) or _text(channel.get("channel")).lower().startswith("trunk")
+                    channel_name = _text(channel.get("channel"))
+                    destination_channel = _text(channel.get("dstchannel") or channel.get("dst_channel"))
+                    extension = _text(
+                        channel.get("channel_ext") or channel.get("chanext")
+                        or channel.get("dstchannel_ext") or channel.get("dstchanext")
+                    )
+                    if not extension:
+                        for candidate in (caller, connected):
+                            digits = _digits(candidate)
+                            if 2 <= len(digits) <= 8:
+                                extension = digits
+                                break
+                    if not extension:
+                        for candidate_channel in (channel_name, destination_channel):
+                            match = re.search(r"(?:PJSIP|SIP|Local)/([0-9]{2,8})(?:-|@)", candidate_channel, re.I)
+                            if match:
+                                extension = match.group(1)
+                                break
                     calls.append({
-                        "call_key": _text(channel.get("uniqueid") or channel.get("uniqueid1") or channel.get("bridge_id") or channel.get("channel") or (caller + ":" + connected)),
+                        "call_key": _text(channel.get("uniqueid") or channel.get("uniqueid1") or channel.get("bridge_id") or channel_name or (caller + ":" + connected)),
                         "caller_number": caller,
                         "connected_number": connected,
                         "caller_name": _text(channel.get("callername") or channel.get("name1")),
                         "direction": "inbound" if inbound else "outbound",
+                        "extension": extension,
                         "state": _text(channel.get("state")) or ("Up" if is_bridged else "Ringing"),
-                        "channel": _text(channel.get("channel")),
+                        "channel": channel_name,
                         "bridged": is_bridged,
                     })
                 self._live_calls = calls
