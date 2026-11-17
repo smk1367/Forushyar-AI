@@ -1,0 +1,310 @@
+--- a/.gitignore
++++ b/.gitignore
+@@ -24,3 +24,8 @@
+ # Backup files
+ /docker-compose.yml.bak-*
+ *.bak-*
++
++# Local environment files (never commit secrets)
++.env
++.env.*
++!.env.example
+--- a/backend/app/services/assistant.py
++++ b/backend/app/services/assistant.py
+@@ -1,5 +1,6 @@
+ import json
+ import re
++from decimal import Decimal, InvalidOperation
+ from typing import Any
+ 
+ import httpx
+@@ -156,3 +157,84 @@
+ ) -> list[dict[str, str]]:
+     system = PERSIAN_SYSTEM_PROMPT + "\n\nداده‌های سامانه برای این پرسش:\n" + catalog_json
+     return [{"role": "system", "content": system}, *history, {"role": "user", "content": user_message}]
++
++_STOCK_QUERY_MARKERS = (
++    "موجودی", "موجود", "انبار", "قابل فروش", "رزرو",
++    "stock", "inventory",
++)
++_PRICE_QUERY_MARKERS = ("قیمت", "بها", "مبلغ", "price")
++_PERSIAN_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
++
++
++def _format_grounded_number(value: Any) -> str:
++    """Format a numeric database fact without changing its value."""
++    try:
++        number = Decimal(str(value))
++    except (InvalidOperation, TypeError, ValueError):
++        return str(value)
++
++    rendered = format(number, ",f")
++    if "." in rendered:
++        rendered = rendered.rstrip("0").rstrip(".")
++    return rendered.replace(",", "٬").translate(_PERSIAN_DIGITS)
++
++
++def build_grounded_catalog_reply(user_message: str, facts: list[dict[str, Any]]) -> str | None:
++    """Answer price/stock questions from DB facts, not probabilistic LLM output.
++
++    Returns None for general questions so the normal conversational model can
++    handle them. For factual catalog questions, every numeric claim is rendered
++    from retrieved DB values; a missing balance is explicitly unknown, not zero.
++    """
++    normalized = user_message.casefold()
++    asks_stock = any(marker in normalized for marker in _STOCK_QUERY_MARKERS)
++    asks_price = any(marker in normalized for marker in _PRICE_QUERY_MARKERS)
++    if not asks_stock and not asks_price:
++        return None
++
++    if not facts:
++        return "در داده‌های فعلی سامانه کالای منطبقی پیدا نشد. لطفاً کد کالا یا نام دقیق‌تر را بفرستید."
++
++    lines: list[str] = []
++    for product in facts:
++        sku = str(product.get("sku", "نامشخص"))
++        name = str(product.get("name") or "بدون نام")
++        unit = str(product.get("unit") or "")
++        lines.append(f"کالای «{name}» (کد {sku}):")
++
++        if asks_price:
++            price = product.get("price")
++            if not price:
++                lines.append("قیمت این کالا هنوز در سامانه ثبت نشده است.")
++            else:
++                amount = _format_grounded_number(price.get("amount", "نامشخص"))
++                currency_code = str(price.get("currency_code") or "").upper()
++                currency = {"IRT": "تومان", "IRR": "ریال"}.get(
++                    currency_code, f"واحد پول {currency_code}" if currency_code else ""
++                )
++                lines.append(f"قیمت ثبت‌شده: {amount} {currency}.".strip())
++
++        if asks_stock:
++            stock_rows = product.get("stock_by_warehouse") or []
++            if not stock_rows:
++                lines.append("اطلاعات انبار برای این کالا در سامانه موجود نیست؛ مقدار موجودی نامشخص است.")
++            else:
++                for stock in stock_rows:
++                    warehouse = str(stock.get("warehouse") or stock.get("warehouse_code") or "انبار نامشخص")
++                    if stock.get("status") == "NO_STOCK_RECORD":
++                        lines.append(
++                            f"- {warehouse}: رکورد موجودی ثبت نشده است؛ مقدار واقعی نامشخص است و صفر فرض نمی‌شود."
++                        )
++                        continue
++
++                    on_hand = _format_grounded_number(stock.get("on_hand", "نامشخص"))
++                    reserved = _format_grounded_number(stock.get("reserved", "نامشخص"))
++                    available = _format_grounded_number(stock.get("available", "نامشخص"))
++                    unit_suffix = f" {unit}" if unit else ""
++                    lines.append(
++                        f"- {warehouse}: موجودی فیزیکی {on_hand}، رزروشده {reserved}، "
++                        f"قابل فروش {available}{unit_suffix}."
++                    )
++
++    return "\n".join(lines)
++
+--- a/backend/app/api/assistant.py
++++ b/backend/app/api/assistant.py
+@@ -12,7 +12,12 @@
+ from app.models.conversation import Conversation, ConversationMessage
+ from app.models.customer import Customer
+ from app.schemas import AssistantChatRequest, AssistantChatResponse, AssistantStatusRead
+-from app.services.assistant import build_catalog_context, build_llm_messages, request_llm
++from app.services.assistant import (
++    build_catalog_context,
++    build_grounded_catalog_reply,
++    build_llm_messages,
++    request_llm,
++)
+ 
+ router = APIRouter(prefix="/assistant", tags=["AI assistant"], dependencies=[Depends(require_api_key)])
+ 
+@@ -29,12 +34,6 @@
+ 
+ @router.post("/chat", response_model=AssistantChatResponse)
+ async def assistant_chat(payload: AssistantChatRequest, session: AsyncSession = Depends(get_db)):
+-    if not settings.llm_is_configured:
+-        raise HTTPException(
+-            status_code=503,
+-            detail="موتور هوش مصنوعی هنوز پیکربندی نشده است؛ ابتدا LLM_BASE_URL و LLM_MODEL را تنظیم کنید.",
+-        )
+-
+     conversation: Conversation | None
+     if payload.conversation_id:
+         conversation = await session.get(Conversation, payload.conversation_id)
+@@ -63,20 +62,31 @@
+     history_rows.reverse()
+     history = [{"role": row.role, "content": row.content} for row in history_rows if row.role in {"user", "assistant"}]
+ 
+-    _, catalog_json = await build_catalog_context(session, payload.message)
+-    await session.rollback()  # release the DB transaction before making the external LLM request
++    catalog_facts, catalog_json = await build_catalog_context(session, payload.message)
++    await session.rollback()  # release the DB transaction before any external LLM request
+ 
+-    messages = build_llm_messages(history, payload.message, catalog_json)
+-    try:
+-        reply = await request_llm(messages)
+-    except httpx.TimeoutException as exc:
+-        raise HTTPException(status_code=504, detail="پاسخ‌گویی هوش مصنوعی بیش از زمان مجاز طول کشید") from exc
+-    except httpx.HTTPStatusError as exc:
+-        raise HTTPException(status_code=502, detail=f"سرویس مدل زبانی خطای HTTP {exc.response.status_code} برگرداند") from exc
+-    except (httpx.HTTPError, ValueError) as exc:
+-        raise HTTPException(status_code=502, detail="ارتباط با سرویس مدل زبانی ناموفق بود") from exc
+-    except RuntimeError as exc:
+-        raise HTTPException(status_code=503, detail="موتور هوش مصنوعی پیکربندی نشده است") from exc
++    # Price and inventory facts must be stated deterministically from database
++    # records. Do not let a small language model reinterpret a missing balance
++    # as a physical stock value of zero.
++    reply = build_grounded_catalog_reply(payload.message, catalog_facts)
++    reply_source = "database-grounded" if reply is not None else (settings.llm_model or "openai-compatible")
++    if reply is None:
++        if not settings.llm_is_configured:
++            raise HTTPException(
++                status_code=503,
++                detail="موتور هوش مصنوعی هنوز پیکربندی نشده است؛ ابتدا LLM_BASE_URL و LLM_MODEL را تنظیم کنید.",
++            )
++        messages = build_llm_messages(history, payload.message, catalog_json)
++        try:
++            reply = await request_llm(messages)
++        except httpx.TimeoutException as exc:
++            raise HTTPException(status_code=504, detail="پاسخ‌گویی هوش مصنوعی بیش از زمان مجاز طول کشید") from exc
++        except httpx.HTTPStatusError as exc:
++            raise HTTPException(status_code=502, detail=f"سرویس مدل زبانی خطای HTTP {exc.response.status_code} برگرداند") from exc
++        except (httpx.HTTPError, ValueError) as exc:
++            raise HTTPException(status_code=502, detail="ارتباط با سرویس مدل زبانی ناموفق بود") from exc
++        except RuntimeError as exc:
++            raise HTTPException(status_code=503, detail="موتور هوش مصنوعی پیکربندی نشده است") from exc
+ 
+     now = datetime.now(timezone.utc)
+     conversation = await session.get(Conversation, conversation_id)
+@@ -92,8 +102,8 @@
+         conversation_id=conversation_id,
+         role="assistant",
+         content=reply,
+-        provider="openai-compatible",
+-        model=settings.llm_model,
++        provider="database" if reply_source == "database-grounded" else "openai-compatible",
++        model=reply_source,
+     )
+     session.add_all([user_record, assistant_record])
+     conversation.last_message_at = now
+@@ -116,6 +126,6 @@
+         user_message_id=user_record.id,
+         assistant_message_id=assistant_record.id,
+         reply=reply,
+-        model=settings.llm_model or "",
++        model=reply_source,
+         grounded_product_skus=grounded_skus,
+     )
+--- a/backend/tests/test_assistant_service.py
++++ b/backend/tests/test_assistant_service.py
+@@ -1,4 +1,8 @@
+-from app.services.assistant import build_llm_messages, extract_search_terms
++from app.services.assistant import (
++    build_grounded_catalog_reply,
++    build_llm_messages,
++    extract_search_terms,
++)
+ 
+ 
+ def test_search_term_extraction_keeps_product_terms():
+@@ -12,3 +16,99 @@
+     assert messages[0]["role"] == "system"
+     assert "سفارش ثبت نکنید" in messages[0]["content"]
+     assert messages[-1] == {"role": "user", "content": "قیمت کالا چقدر است؟"}
++
++
++
++def test_missing_inventory_record_is_unknown_not_zero():
++    facts = [{
++        "sku": "590",
++        "name": "کالای آزمایشی",
++        "unit": "عدد",
++        "price": None,
++        "stock_by_warehouse": [{
++            "warehouse": "تهران - آهن مکان",
++            "warehouse_code": "WH-01",
++            "status": "NO_STOCK_RECORD",
++        }],
++    }]
++
++    reply = build_grounded_catalog_reply("موجودی کالای 590 در انبار چقدر است؟", facts)
++
++    assert reply is not None
++    assert "مقدار واقعی نامشخص است" in reply
++    assert "صفر فرض نمی‌شود" in reply
++    assert "قابل فروش ۰" not in reply
++
++
++def test_recorded_inventory_reports_physical_reserved_and_available_values():
++    facts = [{
++        "sku": "590",
++        "name": "کالای آزمایشی",
++        "unit": "شاخه",
++        "price": None,
++        "stock_by_warehouse": [{
++            "warehouse": "تهران - آهن مکان",
++            "on_hand": "12.000",
++            "reserved": "3.000",
++            "available": "9.000",
++            "status": "RECORDED",
++        }],
++    }]
++
++    reply = build_grounded_catalog_reply("موجودی کالای 590 را بگو", facts)
++
++    assert reply is not None
++    assert "موجودی فیزیکی ۱۲" in reply
++    assert "رزروشده ۳" in reply
++    assert "قابل فروش ۹ شاخه" in reply
++
++
++def test_irt_price_is_reported_in_toman_from_database_value():
++    facts = [{
++        "sku": "590",
++        "name": "کالای آزمایشی",
++        "unit": "عدد",
++        "price": {"amount": "233000.00", "currency_code": "IRT"},
++        "stock_by_warehouse": [],
++    }]
++
++    reply = build_grounded_catalog_reply("قیمت کالای 590 چقدر است؟", facts)
++
++    assert reply is not None
++    assert "۲۳۳٬۰۰۰ تومان" in reply
++
++
++def test_non_catalog_question_is_left_for_language_model():
++    assert build_grounded_catalog_reply("سلام، حالت چطوره؟", []) is None
++
++
++def test_catalog_stock_question_with_no_match_does_not_invent_stock():
++    reply = build_grounded_catalog_reply("موجودی کالای ناشناس چقدر است؟", [])
++
++    assert reply is not None
++    assert "کالای منطبقی پیدا نشد" in reply
++    assert "صفر" not in reply
++
++
++
++def test_recorded_zero_is_distinct_from_missing_inventory_record():
++    facts = [{
++        "sku": "590",
++        "name": "کالای آزمایشی",
++        "unit": "عدد",
++        "price": None,
++        "stock_by_warehouse": [{
++            "warehouse": "تهران - آهن مکان",
++            "on_hand": "0.000",
++            "reserved": "0.000",
++            "available": "0.000",
++            "status": "RECORDED",
++        }],
++    }]
++
++    reply = build_grounded_catalog_reply("موجودی کالای 590 چقدر است؟", facts)
++
++    assert reply is not None
++    assert "موجودی فیزیکی ۰" in reply
++    assert "قابل فروش ۰ عدد" in reply
++    assert "رکورد موجودی ثبت نشده" not in reply

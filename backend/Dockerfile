@@ -1,11 +1,12 @@
-
 # syntax=docker/dockerfile:1
 
 FROM python:3.13-slim-trixie
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PYTEST_ADDOPTS="-p no:cacheprovider" \
+    PYTHONPATH="/app"
 
 WORKDIR /app
 
@@ -15,7 +16,6 @@ RUN groupadd --system --gid 10001 app \
 COPY requirements.txt ./requirements.txt
 
 # Install Python dependencies through internal Nexus
-
 RUN python -m pip install --no-cache-dir \
     --index-url https://mirror2.chabokan.net/pypi/simple/ \
     -r requirements.txt
@@ -23,6 +23,7 @@ RUN python -m pip install --no-cache-dir \
 COPY --chown=app:app app ./app
 COPY --chown=app:app alembic ./alembic
 COPY --chown=app:app alembic.ini ./alembic.ini
+COPY --chown=app:app tests ./tests
 
 USER 10001:10001
 

@@ -24,3 +24,8 @@
 # Backup files
 /docker-compose.yml.bak-*
 *.bak-*
+
+# Local environment files (never commit secrets)
+.env
+.env.*
+!.env.example
