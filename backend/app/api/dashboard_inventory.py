@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -21,7 +23,6 @@ from app.schemas import (
     InventoryView,
     ProductCreate,
     ProductRead,
-    StockMovementRead,
     StockTransferCreate,
     StockTransferRead,
     WarehouseCreate,
@@ -63,9 +64,10 @@ class DashboardProductUpdate(BaseModel):
         if not self.model_fields_set:
             raise ValueError("حداقل یک فیلد برای ویرایش کالا ارسال کنید")
         for field_name in ("name", "unit"):
-            value = getattr(self, field_name)
-            if value is not None and not value.strip():
-                raise ValueError("نام و واحد کالا نباید خالی باشند")
+            if field_name in self.model_fields_set:
+                value = getattr(self, field_name)
+                if value is None or not value.strip():
+                    raise ValueError("نام و واحد کالا نباید خالی باشند")
         return self
 
 
@@ -105,6 +107,8 @@ async def create_dashboard_product(
     values["sku"] = values["sku"].strip()
     values["name"] = values["name"].strip()
     values["unit"] = values["unit"].strip()
+    if not values["sku"] or not values["name"] or not values["unit"]:
+        raise HTTPException(status_code=422, detail="کد، نام و واحد کالا نباید خالی باشند")
     product = Product(**values)
     session.add(product)
     try:
@@ -165,9 +169,13 @@ async def create_dashboard_warehouse(
     session: AsyncSession = Depends(get_db),
 ):
     _require_role(employee, {"ADMIN", "MANAGER"}, "ثبت انبار")
+    code = payload.code.strip()
+    name = payload.name.strip()
+    if not code or not name:
+        raise HTTPException(status_code=422, detail="کد و نام انبار نباید خالی باشند")
     warehouse = Warehouse(
-        code=payload.code.strip(),
-        name=payload.name.strip(),
+        code=code,
+        name=name,
         branch_name=payload.branch_name.strip() if payload.branch_name else None,
         is_active=True,
     )
@@ -185,7 +193,7 @@ async def create_dashboard_warehouse(
 async def list_dashboard_inventory(
     q: str | None = Query(default=None, max_length=120),
     warehouse_id: UUID | None = None,
-    low_stock_only: bool = False,
+    out_of_stock_only: bool = False,
     limit: int = Query(default=200, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     employee: Employee = Depends(current_employee),
@@ -222,12 +230,25 @@ async def list_dashboard_inventory(
         )
         for balance, product, warehouse in rows
     ]
-    if low_stock_only:
-        result = [item for item in result if item.available <= 5]
+    if out_of_stock_only:
+        result = [item for item in result if item.available <= 0]
     return result
 
 
-@router.get("/inventory/movements", response_model=list[StockMovementRead])
+class DashboardStockMovementRead(BaseModel):
+    id: UUID
+    sku: str
+    product_name: str
+    warehouse_code: str
+    warehouse_name: str
+    movement_type: str
+    quantity_delta: Decimal
+    reserved_delta: Decimal
+    reason: str
+    created_at: datetime
+
+
+@router.get("/inventory/movements", response_model=list[DashboardStockMovementRead])
 async def list_dashboard_stock_movements(
     product_id: UUID | None = None,
     warehouse_id: UUID | None = None,
@@ -239,7 +260,9 @@ async def list_dashboard_stock_movements(
 ):
     _require_role(employee, PRODUCT_READERS, "مشاهده گردش انبار")
     stmt = (
-        select(StockMovement)
+        select(StockMovement, Product, Warehouse)
+        .join(Product, Product.id == StockMovement.product_id)
+        .join(Warehouse, Warehouse.id == StockMovement.warehouse_id)
         .order_by(StockMovement.created_at.desc(), StockMovement.id.desc())
         .limit(limit)
         .offset(offset)
@@ -250,7 +273,22 @@ async def list_dashboard_stock_movements(
         stmt = stmt.where(StockMovement.warehouse_id == warehouse_id)
     if movement_type:
         stmt = stmt.where(StockMovement.movement_type == movement_type.upper())
-    return list((await session.scalars(stmt)).all())
+    rows = (await session.execute(stmt)).all()
+    return [
+        DashboardStockMovementRead(
+            id=movement.id,
+            sku=product.sku,
+            product_name=product.name,
+            warehouse_code=warehouse.code,
+            warehouse_name=warehouse.name,
+            movement_type=movement.movement_type,
+            quantity_delta=movement.quantity_delta,
+            reserved_delta=movement.reserved_delta,
+            reason=movement.reason,
+            created_at=movement.created_at,
+        )
+        for movement, product, warehouse in rows
+    ]
 
 
 @router.post(
