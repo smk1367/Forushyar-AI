@@ -211,6 +211,8 @@ async def list_dashboard_inventory(
     )
     if warehouse_id:
         stmt = stmt.where(InventoryBalance.warehouse_id == warehouse_id)
+    if out_of_stock_only:
+        stmt = stmt.where(InventoryBalance.on_hand - InventoryBalance.reserved <= 0)
     search = (q or "").strip()
     if search:
         pattern = f"%{search}%"
@@ -230,8 +232,6 @@ async def list_dashboard_inventory(
         )
         for balance, product, warehouse in rows
     ]
-    if out_of_stock_only:
-        result = [item for item in result if item.available <= 0]
     return result
 
 
