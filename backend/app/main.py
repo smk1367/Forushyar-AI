@@ -14,6 +14,11 @@ from app.api.routes import router
 from app.api.sales import router as sales_router
 from app.api.auth import router as auth_router
 from app.api.dashboard import router as dashboard_router
+from app.api.dashboard_inventory import router as dashboard_inventory_router
+from app.api.dashboard_conversations import router as dashboard_conversations_router
+from app.api.dashboard_employees import router as dashboard_employees_router
+from app.api.dashboard_reports import router as dashboard_reports_router
+from app.api.dashboard_settings import router as dashboard_settings_router
 from app.core.config import settings
 from app.db.session import engine
 
@@ -83,6 +88,11 @@ async def ready():
 
 app.include_router(auth_router)
 app.include_router(dashboard_router)
+app.include_router(dashboard_inventory_router)
+app.include_router(dashboard_conversations_router)
+app.include_router(dashboard_employees_router)
+app.include_router(dashboard_reports_router)
+app.include_router(dashboard_settings_router)
 app.include_router(router)
 app.include_router(sales_router)
 app.include_router(product_entry_api_router)
