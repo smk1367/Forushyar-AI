@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 
 FROM python:3.13-slim-trixie
 
@@ -17,7 +16,7 @@ COPY requirements.txt ./requirements.txt
 
 # Install Python dependencies through internal Nexus
 RUN python -m pip install --no-cache-dir \
-    --index-url https://mirror2.chabokan.net/pypi/simple/ \
+    --index-url https://pypi.org/simple/ \
     -r requirements.txt
 
 COPY --chown=app:app app ./app

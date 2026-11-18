@@ -22,7 +22,7 @@ COPY requirements.txt ./requirements.txt
 RUN python -m pip install --no-cache-dir \
     --timeout 120 \
     --retries 10 \
-    --index-url https://mirror2.chabokan.net/pypi/simple/ \
+    --index-url https://pypi.org/simple/ \
     -r requirements.txt
 COPY --chown=speech:speech app ./app
 
