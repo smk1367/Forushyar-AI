@@ -109,6 +109,7 @@ def health_ready():
 def transcribe_audio(
     audio: UploadFile = File(...),
     language: str = Form(default="fa"),
+    vad_filter: bool = Form(default=False),
 ):
     if language not in {"fa", "auto", "en"}:
         raise HTTPException(
@@ -171,7 +172,7 @@ def transcribe_audio(
                 beam_size=5,
                 temperature=0.0,
                 condition_on_previous_text=False,
-                vad_filter=False,
+                vad_filter=vad_filter,
             )
 
             segments = list(segments)

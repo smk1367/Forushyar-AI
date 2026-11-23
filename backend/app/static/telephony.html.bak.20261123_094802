@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>تلفن و تماس‌ها | فروش‌یار</title>
+<style>
+:root{font-family:Tahoma,Arial,sans-serif;color:#17243a;background:#f4f6fa}
+*{box-sizing:border-box}body{margin:0;padding:22px}.wrap{max-width:1200px;margin:auto}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+h1{font-size:24px;margin:0 0 6px}.muted{color:#718096;font-size:13px}
+a{color:#2857a4;text-decoration:none}button,input,select{font:inherit;border-radius:9px;border:1px solid #d7deea;padding:10px 12px}
+button{background:#244f96;color:white;border:0;cursor:pointer}button.secondary{background:#e9eef7;color:#243653}
+button:disabled{opacity:.55;cursor:not-allowed}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.card{background:white;border:1px solid #e4e9f1;border-radius:14px;padding:16px;box-shadow:0 3px 14px #1b31500a}
+.card h2{font-size:15px;margin:0 0 12px}.metric{font-size:25px;font-weight:bold}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.call-form input{min-width:180px;flex:1}.call-form select{min-width:130px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:20px 0 12px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px 9px;text-align:right;border-bottom:1px solid #edf0f5;white-space:nowrap}
+th{color:#65738a;font-weight:600;background:#f9fafc}td.empty{text-align:center;color:#778397;padding:28px}
+.table-wrap{overflow:auto;border:1px solid #e5eaf2;border-radius:12px;background:#fff}
+.status{display:inline-block;padding:5px 8px;border-radius:99px;background:#eef2f8;font-size:12px}
+.status.ok{background:#e8f6ee;color:#17653b}.notice{margin:14px 0;padding:12px;border-radius:10px;background:#fff7e5;color:#754b0a;display:none}
+.live-item{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #edf0f5;font-size:13px}
+@media(max-width:800px){body{padding:14px}.grid{grid-template-columns:1fr}.metric{font-size:22px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div><h1>تلفن و مرکز تماس</h1><div class="muted">اتصال به Grandstream UCM6202 و سوابق تماس فروش‌یار</div></div>
+  <div class="row"><a href="/dashboard">بازگشت به داشبورد</a><button class="secondary" id="refresh">به‌روزرسانی</button></div>
+</header>
+<div id="notice" class="notice" role="status"></div>
+<section class="grid">
+  <article class="card"><h2>وضعیت اتصال PBX</h2><div id="pbxStatus" class="metric">—</div><div id="pbxDetail" class="muted">در حال بررسی</div></article>
+  <article class="card"><h2>تماس‌های زنده</h2><div id="liveCount" class="metric">۰</div><div class="muted">وضعیت کانال‌های UCM</div></article>
+  <article class="card"><h2>آخرین همگام‌سازی CDR</h2><div id="lastSync" class="metric" style="font-size:16px">—</div><div id="syncError" class="muted">—</div></article>
+</section>
+<section class="card" style="margin-top:14px">
+  <h2>تماس خروجی از داخلی کارمند</h2>
+  <form id="dialForm" class="row call-form">
+    <input id="target" inputmode="tel" autocomplete="tel" placeholder="شماره مقصد یا داخلی" minlength="2" maxlength="32" required>
+    <select id="targetType"><option value="OUTBOUND">شماره بیرونی</option><option value="EXTENSION">داخلی</option></select>
+    <button type="submit">شروع تماس</button>
+  </form>
+  <div class="muted" style="margin-top:8px">تماس از داخلی ثبت‌شده برای حساب شما برقرار می‌شود. ارسال دستور به PBX، به‌تنهایی تأیید مکالمهٔ موفق نیست.</div>
+</section>
+<section class="card" style="margin-top:14px">
+  <div class="toolbar"><h2 style="margin:0">تماس‌های فعال</h2><span class="muted" id="liveUpdated">—</span></div>
+  <div id="liveCalls" class="muted">تماس فعالی گزارش نشده است.</div>
+</section>
+<section class="toolbar">
+  <h2 style="margin:0;font-size:17px">تاریخچه تماس‌ها</h2>
+  <div class="row"><input id="search" placeholder="جست‌وجوی شماره یا نام"><select id="direction"><option value="">همه جهت‌ها</option><option value="inbound">ورودی</option><option value="outbound">خروجی</option><option value="internal">داخلی</option></select><button id="searchButton">جست‌وجو</button><button id="sync" class="secondary">همگام‌سازی CDR</button></div>
+</section>
+<div class="table-wrap"><table><thead><tr><th>زمان</th><th>جهت</th><th>مشتری/شماره</th><th>داخلی</th><th>وضعیت</th><th>مدت مکالمه</th><th>ضبط</th><th>تحلیل</th></tr></thead><tbody id="callsBody"><tr><td class="empty" colspan="8">در حال دریافت اطلاعات...</td></tr></tbody></table></div>
+
+<section id="analysisPanel" class="card"
+         style="margin-top:14px" hidden>
+  <div class="toolbar">
+    <h2>تحلیل هوشمند مکالمه</h2>
+    <button id="closeAnalysis" class="secondary"
+            type="button">بستن</button>
+  </div>
+  <p id="analysisState" class="muted"></p>
+  <h3>خلاصه مکالمه</h3>
+  <p id="analysisSummary"></p>
+  <h3>اطلاعات استخراج‌شده</h3>
+  <pre id="analysisData"
+       style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+  <h3>متن کامل مکالمه</h3>
+  <p id="analysisTranscript"
+     style="white-space:pre-wrap;line-height:2"></p>
+</section>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+function csrf(){const item=document.cookie.split("; ").find(x=>x.startsWith("forushyar_csrf="));return item?decodeURIComponent(item.split("=").slice(1).join("=")):""}
+async function api(path,options={}){const headers={...(options.headers||{})};if(options.method&&options.method!=="GET"){headers["X-CSRF-Token"]=csrf();headers["Content-Type"]="application/json"}const response=await fetch(path,{credentials:"same-origin",...options,headers});if(response.status===401){location.href="/dashboard";throw new Error("ابتدا وارد حساب کاربری شوید")}const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.detail||"درخواست ناموفق بود");return body}
+function message(text){$("notice").textContent=text;$("notice").style.display=text?"block":"none"}
+function localDate(value){if(!value)return "—";const date=new Date(value);return Number.isNaN(date.getTime())?value:date.toLocaleString("fa-IR")}
+function directionName(value){return ({inbound:"ورودی",outbound:"خروجی",internal:"داخلی"})[value]||value||"نامشخص"}
+function statusName(value){return ({answered:"پاسخ‌داده‌شده",missed:"از دست‌رفته",no_answer:"بی‌پاسخ",busy:"مشغول",failed:"ناموفق"})[value]||value||"نامشخص"}
+async function loadStatus(){const data=await api("/api/v1/telephony/status");const ready=data.api_configured||data.cdr_configured;$("pbxStatus").textContent=data.enabled?(ready?"فعال":"تنظیم‌نشده"):"غیرفعال";$("pbxStatus").style.color=ready?"#17653b":"#87550d";$("pbxDetail").textContent="API: "+(data.api_configured?"آماده":"غیرفعال")+" | CDR: "+(data.cdr_configured?"آماده":"غیرفعال")+" | ضبط: "+(data.recording_configured?"آماده":"غیرفعال");$("liveCount").textContent=String(data.live_calls||0);$("lastSync").textContent=localDate(data.last_sync_at);$("syncError").textContent=data.last_sync_error?"خطای آخر: "+data.last_sync_error:"خطای همگام‌سازی ثبت نشده است"}
+async function loadLive(){const data=await api("/api/v1/telephony/live");const items=data.items||[];$("liveCount").textContent=String(items.length);$("liveUpdated").textContent="آخرین به‌روزرسانی: "+localDate(data.updated_at);const host=$("liveCalls");host.replaceChildren();if(!items.length){host.textContent="تماس فعالی گزارش نشده است.";return}for(const call of items){const row=document.createElement("div");row.className="live-item";const left=document.createElement("span");left.textContent=(call.caller_number||"—")+" ← "+(call.connected_number||"—")+" | "+directionName(call.direction);const right=document.createElement("span");right.className="status ok";right.textContent=call.state||"فعال";row.append(left,right);host.append(row)}}
+async function loadCalls(){const params=new URLSearchParams({limit:"100"});if($("search").value.trim())params.set("q",$("search").value.trim());if($("direction").value)params.set("direction",$("direction").value);const data=await api("/api/v1/telephony/calls?"+params.toString());const body=$("callsBody");body.replaceChildren();const items=data.items||[];if(!items.length){const tr=document.createElement("tr"),td=document.createElement("td");td.className="empty";td.colSpan=8;td.textContent="تماسی ثبت نشده است.";tr.append(td);body.append(tr);return}for(const call of items){const tr=document.createElement("tr");const values=[localDate(call.start_time),directionName(call.direction),call.caller_name||call.customer_number||call.source_number||call.destination_number||"—",call.extension||"—",statusName(call.status),(call.billsec_seconds||0)+" ثانیه"];for(const value of values){const td=document.createElement("td");td.textContent=value;tr.append(td)}const audioCell=document.createElement("td");if((call.recordings||[]).length){for(let index=0;index<call.recordings.length;index++){const link=document.createElement("a");link.href="/api/v1/telephony/calls/"+encodeURIComponent(call.id)+"/recordings/"+index;link.textContent="پخش";link.target="_blank";link.rel="noopener";audioCell.append(link);if(index<call.recordings.length-1)audioCell.append("، ")}}else audioCell.textContent="—";tr.append(audioCell);
+const analysisCell = document.createElement("td");
+const analysisButton = document.createElement("button");
+analysisButton.type = "button";
+analysisButton.className = "secondary";
+analysisButton.textContent = "مشاهده تحلیل";
+analysisButton.addEventListener(
+    "click", () => loadCallAnalysis(call.id)
+);
+analysisCell.append(analysisButton);
+tr.append(analysisCell);
+body.append(tr)}}
+
+async function loadCallAnalysis(id) {
+    try {
+        const d = await api(
+            "/api/v1/telephony/calls/" +
+            encodeURIComponent(id) + "/analysis"
+        );
+        $("analysisPanel").hidden = false;
+        $("analysisState").textContent =
+            d.analysis_status === "completed"
+            ? "تحلیل انجام شده"
+            : "این مکالمه هنوز تحلیل نشده است";
+        $("analysisSummary").textContent = d.summary || "—";
+        $("analysisData").textContent =
+            Object.keys(d.analysis_data || {}).length
+            ? JSON.stringify(d.analysis_data, null, 2)
+            : "—";
+        $("analysisTranscript").textContent =
+            d.transcript || "—";
+        $("analysisPanel").scrollIntoView({
+            behavior: "smooth", block: "start"
+        });
+    } catch (error) {
+        message(error.message);
+    }
+}
+
+$("closeAnalysis").addEventListener("click", () => {
+    $("analysisPanel").hidden = true;
+});
+
+async function refreshAll(){message("");try{await Promise.all([loadStatus(),loadLive(),loadCalls()])}catch(error){message(error.message)}}
+$("refresh").addEventListener("click",refreshAll);$("searchButton").addEventListener("click",()=>loadCalls().catch(error=>message(error.message)));$("direction").addEventListener("change",()=>loadCalls().catch(error=>message(error.message)));
+$("sync").addEventListener("click",async()=>{message("");$("sync").disabled=true;try{const result=await api("/api/v1/telephony/sync",{method:"POST",body:"{}"});message("همگام‌سازی انجام شد: "+result.received+" رکورد دریافت شد.");await refreshAll()}catch(error){message(error.message)}finally{$("sync").disabled=false}});
+$("dialForm").addEventListener("submit",async event=>{event.preventDefault();message("");const button=$("dialForm").querySelector("button");button.disabled=true;try{await api("/api/v1/telephony/click-to-call",{method:"POST",body:JSON.stringify({target:$("target").value.trim(),target_type:$("targetType").value})});message("دستور تماس به مرکز تلفن ارسال شد. وضعیت برقراری تماس را در UCM بررسی کنید.")}catch(error){message(error.message)}finally{button.disabled=false}});
+refreshAll();setInterval(()=>{loadLive().catch(()=>{})},5000);
+</script>
+</body>
+</html>

@@ -54,7 +54,26 @@ th{color:#65738a;font-weight:600;background:#f9fafc}td.empty{text-align:center;c
   <h2 style="margin:0;font-size:17px">تاریخچه تماس‌ها</h2>
   <div class="row"><input id="search" placeholder="جست‌وجوی شماره یا نام"><select id="direction"><option value="">همه جهت‌ها</option><option value="inbound">ورودی</option><option value="outbound">خروجی</option><option value="internal">داخلی</option></select><button id="searchButton">جست‌وجو</button><button id="sync" class="secondary">همگام‌سازی CDR</button></div>
 </section>
-<div class="table-wrap"><table><thead><tr><th>زمان</th><th>جهت</th><th>مشتری/شماره</th><th>داخلی</th><th>وضعیت</th><th>مدت مکالمه</th><th>ضبط</th></tr></thead><tbody id="callsBody"><tr><td class="empty" colspan="7">در حال دریافت اطلاعات...</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>زمان</th><th>جهت</th><th>مشتری/شماره</th><th>داخلی</th><th>وضعیت</th><th>مدت مکالمه</th><th>ضبط</th><th>تحلیل</th></tr></thead><tbody id="callsBody"><tr><td class="empty" colspan="8">در حال دریافت اطلاعات...</td></tr></tbody></table></div>
+
+<section id="analysisPanel" class="card"
+         style="margin-top:14px" hidden>
+  <div class="toolbar">
+    <h2>تحلیل هوشمند مکالمه</h2>
+    <button id="startAnalysis" type="button" hidden>شروع تحلیل مکالمه</button>
+    <button id="closeAnalysis" class="secondary"
+            type="button">بستن</button>
+  </div>
+  <p id="analysisState" class="muted"></p>
+  <h3>خلاصه مکالمه</h3>
+  <p id="analysisSummary"></p>
+  <h3>اطلاعات استخراج‌شده</h3>
+  <pre id="analysisData"
+       style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+  <h3>متن کامل مکالمه</h3>
+  <p id="analysisTranscript"
+     style="white-space:pre-wrap;line-height:2"></p>
+</section>
 </div>
 <script>
 const $=id=>document.getElementById(id);
@@ -66,7 +85,116 @@ function directionName(value){return ({inbound:"ورودی",outbound:"خروجی
 function statusName(value){return ({answered:"پاسخ‌داده‌شده",missed:"از دست‌رفته",no_answer:"بی‌پاسخ",busy:"مشغول",failed:"ناموفق"})[value]||value||"نامشخص"}
 async function loadStatus(){const data=await api("/api/v1/telephony/status");const ready=data.api_configured||data.cdr_configured;$("pbxStatus").textContent=data.enabled?(ready?"فعال":"تنظیم‌نشده"):"غیرفعال";$("pbxStatus").style.color=ready?"#17653b":"#87550d";$("pbxDetail").textContent="API: "+(data.api_configured?"آماده":"غیرفعال")+" | CDR: "+(data.cdr_configured?"آماده":"غیرفعال")+" | ضبط: "+(data.recording_configured?"آماده":"غیرفعال");$("liveCount").textContent=String(data.live_calls||0);$("lastSync").textContent=localDate(data.last_sync_at);$("syncError").textContent=data.last_sync_error?"خطای آخر: "+data.last_sync_error:"خطای همگام‌سازی ثبت نشده است"}
 async function loadLive(){const data=await api("/api/v1/telephony/live");const items=data.items||[];$("liveCount").textContent=String(items.length);$("liveUpdated").textContent="آخرین به‌روزرسانی: "+localDate(data.updated_at);const host=$("liveCalls");host.replaceChildren();if(!items.length){host.textContent="تماس فعالی گزارش نشده است.";return}for(const call of items){const row=document.createElement("div");row.className="live-item";const left=document.createElement("span");left.textContent=(call.caller_number||"—")+" ← "+(call.connected_number||"—")+" | "+directionName(call.direction);const right=document.createElement("span");right.className="status ok";right.textContent=call.state||"فعال";row.append(left,right);host.append(row)}}
-async function loadCalls(){const params=new URLSearchParams({limit:"100"});if($("search").value.trim())params.set("q",$("search").value.trim());if($("direction").value)params.set("direction",$("direction").value);const data=await api("/api/v1/telephony/calls?"+params.toString());const body=$("callsBody");body.replaceChildren();const items=data.items||[];if(!items.length){const tr=document.createElement("tr"),td=document.createElement("td");td.className="empty";td.colSpan=7;td.textContent="تماسی ثبت نشده است.";tr.append(td);body.append(tr);return}for(const call of items){const tr=document.createElement("tr");const values=[localDate(call.start_time),directionName(call.direction),call.caller_name||call.customer_number||call.source_number||call.destination_number||"—",call.extension||"—",statusName(call.status),(call.billsec_seconds||0)+" ثانیه"];for(const value of values){const td=document.createElement("td");td.textContent=value;tr.append(td)}const audioCell=document.createElement("td");if((call.recordings||[]).length){for(let index=0;index<call.recordings.length;index++){const link=document.createElement("a");link.href="/api/v1/telephony/calls/"+encodeURIComponent(call.id)+"/recordings/"+index;link.textContent="پخش";link.target="_blank";link.rel="noopener";audioCell.append(link);if(index<call.recordings.length-1)audioCell.append("، ")}}else audioCell.textContent="—";tr.append(audioCell);body.append(tr)}}
+async function loadCalls(){const params=new URLSearchParams({limit:"100"});if($("search").value.trim())params.set("q",$("search").value.trim());if($("direction").value)params.set("direction",$("direction").value);const data=await api("/api/v1/telephony/calls?"+params.toString());const body=$("callsBody");body.replaceChildren();const items=data.items||[];if(!items.length){const tr=document.createElement("tr"),td=document.createElement("td");td.className="empty";td.colSpan=8;td.textContent="تماسی ثبت نشده است.";tr.append(td);body.append(tr);return}for(const call of items){const tr=document.createElement("tr");const values=[localDate(call.start_time),directionName(call.direction),call.caller_name||call.customer_number||call.source_number||call.destination_number||"—",call.extension||"—",statusName(call.status),(call.billsec_seconds||0)+" ثانیه"];for(const value of values){const td=document.createElement("td");td.textContent=value;tr.append(td)}const audioCell=document.createElement("td");if((call.recordings||[]).length){for(let index=0;index<call.recordings.length;index++){const link=document.createElement("a");link.href="/api/v1/telephony/calls/"+encodeURIComponent(call.id)+"/recordings/"+index;link.textContent="پخش";link.target="_blank";link.rel="noopener";audioCell.append(link);if(index<call.recordings.length-1)audioCell.append("، ")}}else audioCell.textContent="—";tr.append(audioCell);
+const analysisCell = document.createElement("td");
+const analysisButton = document.createElement("button");
+analysisButton.type = "button";
+analysisButton.className = "secondary";
+analysisButton.textContent = "مشاهده تحلیل";
+analysisButton.addEventListener(
+    "click", () => loadCallAnalysis(call.id)
+);
+analysisCell.append(analysisButton);
+tr.append(analysisCell);
+body.append(tr)}}
+
+
+const analysisUI = { callId: null, timer: null };
+
+function stopAnalysisPolling() {
+    if (analysisUI.timer !== null) {
+        clearTimeout(analysisUI.timer);
+        analysisUI.timer = null;
+    }
+}
+
+async function loadCallAnalysis(id) {
+    analysisUI.callId = id;
+    stopAnalysisPolling();
+
+    try {
+        const d = await api(
+            "/api/v1/telephony/calls/" +
+            encodeURIComponent(id) + "/analysis"
+        );
+
+        if (analysisUI.callId !== id) return;
+
+        const status = d.analysis_status || "not_processed";
+        $("analysisPanel").hidden = false;
+
+        const labels = {
+            completed: "تحلیل انجام شده",
+            processing: "در حال پردازش مکالمه با هوش مصنوعی...",
+            failed: "تحلیل ناموفق بود؛ امکان تلاش مجدد وجود دارد.",
+            not_processed: "این مکالمه هنوز تحلیل نشده است"
+        };
+
+        $("analysisState").textContent =
+            labels[status] || labels.not_processed;
+
+        $("analysisSummary").textContent = d.summary || "—";
+        $("analysisData").textContent =
+            Object.keys(d.analysis_data || {}).length
+            ? JSON.stringify(d.analysis_data, null, 2)
+            : "—";
+        $("analysisTranscript").textContent =
+            d.transcript || "—";
+
+        const btn = $("startAnalysis");
+        btn.hidden = status === "completed" ||
+                     status === "processing";
+        btn.disabled = false;
+        btn.textContent = status === "failed"
+            ? "تلاش مجدد تحلیل"
+            : "شروع تحلیل مکالمه";
+
+        if (status === "processing") {
+            analysisUI.timer = setTimeout(() => {
+                if (
+                    analysisUI.callId === id &&
+                    !$("analysisPanel").hidden
+                ) {
+                    loadCallAnalysis(id);
+                }
+            }, 7000);
+        }
+    } catch (error) {
+        message(error.message);
+    }
+}
+
+$("startAnalysis").addEventListener("click", async () => {
+    const id = analysisUI.callId;
+    if (!id) return;
+
+    const btn = $("startAnalysis");
+    btn.disabled = true;
+    message("");
+
+    try {
+        await api(
+            "/api/v1/telephony/calls/" +
+            encodeURIComponent(id) + "/analyze",
+            { method: "POST", body: "{}" }
+        );
+
+        await loadCallAnalysis(id);
+    } catch (error) {
+        message(error.message);
+        btn.disabled = false;
+    }
+});
+
+$("closeAnalysis").addEventListener("click", () => {
+    analysisUI.callId = null;
+    stopAnalysisPolling();
+});
+
+$("closeAnalysis").addEventListener("click", () => {
+    $("analysisPanel").hidden = true;
+});
+
 async function refreshAll(){message("");try{await Promise.all([loadStatus(),loadLive(),loadCalls()])}catch(error){message(error.message)}}
 $("refresh").addEventListener("click",refreshAll);$("searchButton").addEventListener("click",()=>loadCalls().catch(error=>message(error.message)));$("direction").addEventListener("change",()=>loadCalls().catch(error=>message(error.message)));
 $("sync").addEventListener("click",async()=>{message("");$("sync").disabled=true;try{const result=await api("/api/v1/telephony/sync",{method:"POST",body:"{}"});message("همگام‌سازی انجام شد: "+result.received+" رکورد دریافت شد.");await refreshAll()}catch(error){message(error.message)}finally{$("sync").disabled=false}});

@@ -46,6 +46,24 @@ class TelephonyCall(Base):
         JSONB, nullable=False, default=list
     )
     raw_cdr: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    transcript: Mapped[str] = mapped_column(
+        Text, nullable=False, default=""
+    )
+    analysis_summary: Mapped[str] = mapped_column(
+        Text, nullable=False, default=""
+    )
+    analysis_data: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict
+    )
+    analysis_status: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="not_processed"
+    )
+    analysis_error: Mapped[str] = mapped_column(
+        Text, nullable=False, default=""
+    )
+    analysis_processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     outcome: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     call_notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     synced_at: Mapped[datetime] = mapped_column(

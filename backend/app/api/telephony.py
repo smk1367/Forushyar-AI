@@ -1,4 +1,9 @@
 from __future__ import annotations
+from datetime import datetime, timedelta, timezone
+from fastapi import BackgroundTasks
+from sqlalchemy import text, update
+from app.services.telephony.call_analysis import process_call_analysis
+
 
 import hmac
 import re
@@ -206,6 +211,102 @@ async def customer_calls(
     return {"items": [_call_json(call) for call in calls], "limit": limit, "offset": offset}
 
 
+
+@router.get("/calls/{call_id}/analysis")
+async def get_call_analysis(
+    call_id: UUID,
+    employee: Employee = Depends(current_employee),
+    session: AsyncSession = Depends(get_db),
+):
+    _require_role(employee, {"ADMIN", "MANAGER", "SALES"})
+    call = await session.get(TelephonyCall, call_id)
+    if call is None or (
+        employee.role == "SALES"
+        and call.extension != employee.phone_extension
+    ):
+        raise HTTPException(status_code=404, detail="تماس پیدا نشد")
+
+    return {
+        "analysis_status": call.analysis_status,
+        "transcript": call.transcript,
+        "summary": call.analysis_summary,
+        "analysis_data": call.analysis_data or {},
+        "processed_at": call.analysis_processed_at,
+    }
+
+
+
+@router.post("/calls/{call_id}/analyze", dependencies=[Depends(require_csrf)])
+async def start_call_analysis(
+    call_id: UUID,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    employee: Employee = Depends(current_employee),
+    session: AsyncSession = Depends(get_db),
+):
+    _require_role(employee, {"ADMIN", "MANAGER", "SALES"})
+
+    call = await session.get(TelephonyCall, call_id)
+    if call is None or (
+        employee.role == "SALES"
+        and call.extension != employee.phone_extension
+    ):
+        raise HTTPException(status_code=404, detail="تماس پیدا نشد")
+
+    if not normalize_recording_references(call.recordings or []):
+        raise HTTPException(status_code=409, detail="فایل ضبط موجود نیست")
+
+    if call.analysis_status == "completed":
+        return {"status": "completed", "id": str(call_id)}
+
+    if not _runtime(request).recording_configured:
+        raise HTTPException(status_code=503, detail="سرویس ضبط آماده نیست")
+
+    locked = await session.scalar(
+        text("SELECT pg_try_advisory_xact_lock(51995541)")
+    )
+    if not locked:
+        raise HTTPException(status_code=429, detail="درخواست دیگری در حال ثبت است")
+
+    stale_before = datetime.now(timezone.utc) - timedelta(minutes=30)
+    await session.execute(
+        update(TelephonyCall)
+        .where(
+            TelephonyCall.analysis_status == "processing",
+            TelephonyCall.analysis_processed_at < stale_before,
+        )
+        .values(
+            analysis_status="failed",
+            analysis_error="PROCESS_INTERRUPTED",
+        )
+    )
+
+    active = await session.scalar(
+        select(TelephonyCall.id)
+        .where(TelephonyCall.analysis_status == "processing")
+        .limit(1)
+    )
+    if active is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="یک مکالمه دیگر در حال تحلیل است",
+        )
+
+    await session.refresh(call, with_for_update=True)
+    if call.analysis_status == "completed":
+        return {"status": "completed", "id": str(call_id)}
+
+    call.analysis_status = "processing"
+    call.analysis_error = ""
+    call.analysis_processed_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    background_tasks.add_task(
+        process_call_analysis, call_id, _runtime(request)
+    )
+    return {"status": "processing", "id": str(call_id)}
+
+
 @router.post("/sync", dependencies=[Depends(require_csrf)])
 async def manual_sync(
     request: Request,
@@ -224,7 +325,7 @@ async def click_to_call(
     request: Request,
     employee: Employee = Depends(current_employee),
 ):
-    _require_role(employee, {"ADMIN", "MANAGER", "SALES"})
+    _require_role(employee, {"ADMIN", "MANAGER", "SALES", "SUPPORT"})
     caller_extension = (employee.phone_extension or "").strip()
     if not re.fullmatch(r"[0-9]{2,8}", caller_extension):
         raise HTTPException(

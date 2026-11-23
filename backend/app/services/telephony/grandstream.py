@@ -202,6 +202,7 @@ def normalize_recording_references(value: Any) -> list[dict[str, str]]:
     result: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
     for raw in candidates:
+        raw = raw.rstrip("@").strip()
         directory = "monitor"
         filename = raw
         if "filedir=" in raw and "filename=" in raw:
@@ -555,9 +556,13 @@ class GrandstreamTelephonyRuntime:
         if not safe or safe[0] != {"filedir": filedir, "filename": filename}:
             raise ValueError("Invalid recording reference")
         auth = httpx.DigestAuth(self.settings.ucm_cdr_username, self.settings.ucm_cdr_password)
+        # UCM REC API expects the monthly directory inside filename.
+        rec_filedir = "monitor"
+        rec_filename = filename if filedir == "monitor" else f"{filedir}/{filename}"
+
         response = await self._client().get(
             self.settings.ucm_recording_url,
-            params={"filedir": filedir, "filename": filename},
+            params={"filedir": rec_filedir, "filename": rec_filename},
             auth=auth,
         )
         response.raise_for_status()
