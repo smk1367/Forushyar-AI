@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.auth import current_employee
 from app.core.config import settings
 from app.db.session import get_db
+from app.models.customer import Customer
 from app.models.employee import Employee
 from app.models.telephony_call import TelephonyCall
 from app.security import require_csrf
@@ -143,7 +144,9 @@ async def list_calls(
     session: AsyncSession = Depends(get_db),
 ):
     _require_role(employee, {"ADMIN", "MANAGER", "SALES", "SUPPORT"})
-    statement = select(TelephonyCall).order_by(
+    statement = select(TelephonyCall, Customer.full_name).outerjoin(
+        Customer, Customer.id == TelephonyCall.customer_id
+    ).order_by(
         TelephonyCall.start_time.desc(), TelephonyCall.id.desc()
     ).limit(limit).offset(offset)
     if direction:
@@ -170,8 +173,9 @@ async def list_calls(
         if not employee.phone_extension:
             raise HTTPException(status_code=403, detail="داخلی تلفنی برای حساب شما تعریف نشده است")
         statement = statement.where(TelephonyCall.extension == employee.phone_extension)
-    calls = list((await session.scalars(statement)).all())
-    return {"items": [_call_json(call) for call in calls], "limit": limit, "offset": offset}
+    rows = await session.execute(statement)
+    items = [dict(_call_json(call), customer_name=name) for call, name in rows]
+    return {"items": items, "limit": limit, "offset": offset}
 
 
 @router.get("/calls/{call_id}")

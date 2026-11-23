@@ -47,6 +47,17 @@ def _digits(value: Any) -> str:
     return "".join(character for character in _text(value) if character.isdigit())
 
 
+def customer_phone_candidates(value: str) -> tuple[str, ...]:
+    # Some CDRs contain a display name followed by the actual caller ID.
+    caller_id = re.search(r"<([^<>]+)>$", value.strip())
+    number = _digits(caller_id.group(1) if caller_id else value)
+    mobile = re.fullmatch(r"(?:0|98|0098)?(9[0-9]{9})", number)
+    if mobile:
+        national = mobile.group(1)
+        return national, "0" + national, "98" + national, "0098" + national
+    return (number,) if number else ()
+
+
 def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
@@ -512,14 +523,17 @@ class GrandstreamTelephonyRuntime:
         async with self.session_factory() as session:
             for record in records:
                 normalized = normalize_cdr(record)
-                number = _digits(normalized["customer_number"])
+                numbers = customer_phone_candidates(normalized["customer_number"])
                 customer_id = None
-                if number:
-                    customer_id = await session.scalar(
+                if numbers:
+                    matches = await session.scalars(
                         select(Customer.id)
-                        .where(func.regexp_replace(Customer.phone, r"\D", "", "g") == number)
-                        .limit(1)
+                        .where(func.regexp_replace(Customer.phone, r"\D", "", "g").in_(numbers))
+                        .limit(2)
                     )
+                    ids = matches.all()
+                    if len(ids) == 1:
+                        customer_id = ids[0]
                 now = datetime.now(timezone.utc)
                 values = {
                     "id": uuid4(),

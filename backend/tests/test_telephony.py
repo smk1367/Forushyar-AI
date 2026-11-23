@@ -1,4 +1,5 @@
 from app.services.telephony.grandstream import (
+    customer_phone_candidates,
     normalize_cdr,
     normalize_recording_references,
     parse_cdr_csv,
@@ -81,3 +82,15 @@ def test_recording_reference_rejects_path_traversal():
     assert normalize_recording_references(["../secret.wav", "monitor/ok.wav"]) == [
         {"filedir": "monitor", "filename": "ok.wav"}
     ]
+
+
+def test_iranian_mobile_matches_stored_domestic_number():
+    expected = ("9123456789", "09123456789", "989123456789", "00989123456789")
+    for value in (*expected, "+989123456789", '"Desk 2" <9123456789>'):
+        assert customer_phone_candidates(value) == expected
+
+
+def test_extensions_landlines_and_foreign_numbers_keep_exact_matching():
+    for value in ("101", "02112345678", "491234567890"):
+        assert customer_phone_candidates(value) == (value,)
+    assert customer_phone_candidates("") == ()
