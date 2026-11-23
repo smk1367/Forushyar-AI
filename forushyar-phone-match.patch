@@ -1,0 +1,135 @@
+From 699b9cda4e81023b9e6794974e492b4f03d6e11a Mon Sep 17 00:00:00 2001
+From: Codex <codex@localhost>
+Date: Mon, 23 Nov 2026 11:04:06 +0330
+Subject: [PATCH] Match Iranian mobile caller IDs to CRM customers and display
+ their names
+
+---
+ backend/app/api/telephony.py                  | 10 +++++---
+ backend/app/services/telephony/grandstream.py | 24 +++++++++++++++----
+ backend/app/static/telephony.html             |  2 +-
+ backend/tests/test_telephony.py               | 13 ++++++++++
+ 4 files changed, 40 insertions(+), 9 deletions(-)
+
+diff --git a/backend/app/api/telephony.py b/backend/app/api/telephony.py
+index 63318ef..0565824 100644
+--- a/backend/app/api/telephony.py
++++ b/backend/app/api/telephony.py
+@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
+ from app.api.auth import current_employee
+ from app.core.config import settings
+ from app.db.session import get_db
++from app.models.customer import Customer
+ from app.models.employee import Employee
+ from app.models.telephony_call import TelephonyCall
+ from app.security import require_csrf
+@@ -138,7 +139,9 @@ async def list_calls(
+     session: AsyncSession = Depends(get_db),
+ ):
+     _require_role(employee, {"ADMIN", "MANAGER", "SALES", "SUPPORT"})
+-    statement = select(TelephonyCall).order_by(
++    statement = select(TelephonyCall, Customer.full_name).outerjoin(
++        Customer, Customer.id == TelephonyCall.customer_id
++    ).order_by(
+         TelephonyCall.start_time.desc(), TelephonyCall.id.desc()
+     ).limit(limit).offset(offset)
+     if direction:
+@@ -165,8 +168,9 @@ async def list_calls(
+         if not employee.phone_extension:
+             raise HTTPException(status_code=403, detail="داخلی تلفنی برای حساب شما تعریف نشده است")
+         statement = statement.where(TelephonyCall.extension == employee.phone_extension)
+-    calls = list((await session.scalars(statement)).all())
+-    return {"items": [_call_json(call) for call in calls], "limit": limit, "offset": offset}
++    rows = await session.execute(statement)
++    items = [dict(_call_json(call), customer_name=name) for call, name in rows]
++    return {"items": items, "limit": limit, "offset": offset}
+ 
+ 
+ @router.get("/calls/{call_id}")
+diff --git a/backend/app/services/telephony/grandstream.py b/backend/app/services/telephony/grandstream.py
+index 53f04ef..bdcb4c2 100644
+--- a/backend/app/services/telephony/grandstream.py
++++ b/backend/app/services/telephony/grandstream.py
+@@ -47,6 +47,17 @@ def _digits(value: Any) -> str:
+     return "".join(character for character in _text(value) if character.isdigit())
+ 
+ 
++def customer_phone_candidates(value: str) -> tuple[str, ...]:
++    # Some CDRs contain a display name followed by the actual caller ID.
++    caller_id = re.search(r"<([^<>]+)>$", value.strip())
++    number = _digits(caller_id.group(1) if caller_id else value)
++    mobile = re.fullmatch(r"(?:0|98|0098)?(9[0-9]{9})", number)
++    if mobile:
++        national = mobile.group(1)
++        return national, "0" + national, "98" + national, "0098" + national
++    return (number,) if number else ()
++
++
+ def _as_dict(value: Any) -> dict[str, Any]:
+     return value if isinstance(value, dict) else {}
+ 
+@@ -511,14 +522,17 @@ class GrandstreamTelephonyRuntime:
+         async with self.session_factory() as session:
+             for record in records:
+                 normalized = normalize_cdr(record)
+-                number = _digits(normalized["customer_number"])
++                numbers = customer_phone_candidates(normalized["customer_number"])
+                 customer_id = None
+-                if number:
+-                    customer_id = await session.scalar(
++                if numbers:
++                    matches = await session.scalars(
+                         select(Customer.id)
+-                        .where(func.regexp_replace(Customer.phone, r"\D", "", "g") == number)
+-                        .limit(1)
++                        .where(func.regexp_replace(Customer.phone, r"\D", "", "g").in_(numbers))
++                        .limit(2)
+                     )
++                    ids = matches.all()
++                    if len(ids) == 1:
++                        customer_id = ids[0]
+                 now = datetime.now(timezone.utc)
+                 values = {
+                     "id": uuid4(),
+diff --git a/backend/app/static/telephony.html b/backend/app/static/telephony.html
+index 7f0de20..077e47b 100644
+--- a/backend/app/static/telephony.html
++++ b/backend/app/static/telephony.html
+@@ -66,7 +66,7 @@ function directionName(value){return ({inbound:"ورودی",outbound:"خروجی
+ function statusName(value){return ({answered:"پاسخ‌داده‌شده",missed:"از دست‌رفته",no_answer:"بی‌پاسخ",busy:"مشغول",failed:"ناموفق"})[value]||value||"نامشخص"}
+ async function loadStatus(){const data=await api("/api/v1/telephony/status");const ready=data.api_configured||data.cdr_configured;$("pbxStatus").textContent=data.enabled?(ready?"فعال":"تنظیم‌نشده"):"غیرفعال";$("pbxStatus").style.color=ready?"#17653b":"#87550d";$("pbxDetail").textContent="API: "+(data.api_configured?"آماده":"غیرفعال")+" | CDR: "+(data.cdr_configured?"آماده":"غیرفعال")+" | ضبط: "+(data.recording_configured?"آماده":"غیرفعال");$("liveCount").textContent=String(data.live_calls||0);$("lastSync").textContent=localDate(data.last_sync_at);$("syncError").textContent=data.last_sync_error?"خطای آخر: "+data.last_sync_error:"خطای همگام‌سازی ثبت نشده است"}
+ async function loadLive(){const data=await api("/api/v1/telephony/live");const items=data.items||[];$("liveCount").textContent=String(items.length);$("liveUpdated").textContent="آخرین به‌روزرسانی: "+localDate(data.updated_at);const host=$("liveCalls");host.replaceChildren();if(!items.length){host.textContent="تماس فعالی گزارش نشده است.";return}for(const call of items){const row=document.createElement("div");row.className="live-item";const left=document.createElement("span");left.textContent=(call.caller_number||"—")+" ← "+(call.connected_number||"—")+" | "+directionName(call.direction);const right=document.createElement("span");right.className="status ok";right.textContent=call.state||"فعال";row.append(left,right);host.append(row)}}
+-async function loadCalls(){const params=new URLSearchParams({limit:"100"});if($("search").value.trim())params.set("q",$("search").value.trim());if($("direction").value)params.set("direction",$("direction").value);const data=await api("/api/v1/telephony/calls?"+params.toString());const body=$("callsBody");body.replaceChildren();const items=data.items||[];if(!items.length){const tr=document.createElement("tr"),td=document.createElement("td");td.className="empty";td.colSpan=7;td.textContent="تماسی ثبت نشده است.";tr.append(td);body.append(tr);return}for(const call of items){const tr=document.createElement("tr");const values=[localDate(call.start_time),directionName(call.direction),call.caller_name||call.customer_number||call.source_number||call.destination_number||"—",call.extension||"—",statusName(call.status),(call.billsec_seconds||0)+" ثانیه"];for(const value of values){const td=document.createElement("td");td.textContent=value;tr.append(td)}const audioCell=document.createElement("td");if((call.recordings||[]).length){for(let index=0;index<call.recordings.length;index++){const link=document.createElement("a");link.href="/api/v1/telephony/calls/"+encodeURIComponent(call.id)+"/recordings/"+index;link.textContent="پخش";link.target="_blank";link.rel="noopener";audioCell.append(link);if(index<call.recordings.length-1)audioCell.append("، ")}}else audioCell.textContent="—";tr.append(audioCell);body.append(tr)}}
++async function loadCalls(){const params=new URLSearchParams({limit:"100"});if($("search").value.trim())params.set("q",$("search").value.trim());if($("direction").value)params.set("direction",$("direction").value);const data=await api("/api/v1/telephony/calls?"+params.toString());const body=$("callsBody");body.replaceChildren();const items=data.items||[];if(!items.length){const tr=document.createElement("tr"),td=document.createElement("td");td.className="empty";td.colSpan=7;td.textContent="تماسی ثبت نشده است.";tr.append(td);body.append(tr);return}for(const call of items){const tr=document.createElement("tr");const values=[localDate(call.start_time),directionName(call.direction),call.customer_name||call.caller_name||call.customer_number||call.source_number||call.destination_number||"—",call.extension||"—",statusName(call.status),(call.billsec_seconds||0)+" ثانیه"];for(const value of values){const td=document.createElement("td");td.textContent=value;tr.append(td)}const audioCell=document.createElement("td");if((call.recordings||[]).length){for(let index=0;index<call.recordings.length;index++){const link=document.createElement("a");link.href="/api/v1/telephony/calls/"+encodeURIComponent(call.id)+"/recordings/"+index;link.textContent="پخش";link.target="_blank";link.rel="noopener";audioCell.append(link);if(index<call.recordings.length-1)audioCell.append("، ")}}else audioCell.textContent="—";tr.append(audioCell);body.append(tr)}}
+ async function refreshAll(){message("");try{await Promise.all([loadStatus(),loadLive(),loadCalls()])}catch(error){message(error.message)}}
+ $("refresh").addEventListener("click",refreshAll);$("searchButton").addEventListener("click",()=>loadCalls().catch(error=>message(error.message)));$("direction").addEventListener("change",()=>loadCalls().catch(error=>message(error.message)));
+ $("sync").addEventListener("click",async()=>{message("");$("sync").disabled=true;try{const result=await api("/api/v1/telephony/sync",{method:"POST",body:"{}"});message("همگام‌سازی انجام شد: "+result.received+" رکورد دریافت شد.");await refreshAll()}catch(error){message(error.message)}finally{$("sync").disabled=false}});
+diff --git a/backend/tests/test_telephony.py b/backend/tests/test_telephony.py
+index 386d272..01e7138 100644
+--- a/backend/tests/test_telephony.py
++++ b/backend/tests/test_telephony.py
+@@ -1,4 +1,5 @@
+ from app.services.telephony.grandstream import (
++    customer_phone_candidates,
+     normalize_cdr,
+     normalize_recording_references,
+     parse_cdr_csv,
+@@ -81,3 +82,15 @@ def test_recording_reference_rejects_path_traversal():
+     assert normalize_recording_references(["../secret.wav", "monitor/ok.wav"]) == [
+         {"filedir": "monitor", "filename": "ok.wav"}
+     ]
++
++
++def test_iranian_mobile_matches_stored_domestic_number():
++    expected = ("9123456789", "09123456789", "989123456789", "00989123456789")
++    for value in (*expected, "+989123456789", '"Desk 2" <9123456789>'):
++        assert customer_phone_candidates(value) == expected
++
++
++def test_extensions_landlines_and_foreign_numbers_keep_exact_matching():
++    for value in ("101", "02112345678", "491234567890"):
++        assert customer_phone_candidates(value) == (value,)
++    assert customer_phone_candidates("") == ()
+-- 
+2.56.1
+

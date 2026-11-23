@@ -33,6 +33,31 @@ async def lifespan(application: FastAPI):
     redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
     telephony_runtime = GrandstreamTelephonyRuntime(settings, SessionLocal)
     application.state.telephony_runtime = telephony_runtime
+
+    # RECOVER_INTERRUPTED_CALL_ANALYSES
+    # Current deployment has one API container.
+    # Its previous in-process tasks cannot survive restart.
+    try:
+        async with SessionLocal() as session:
+            result = await session.execute(
+                text(
+                    "UPDATE telephony_calls "
+                    "SET analysis_status = 'failed', "
+                    "analysis_error = 'PROCESS_INTERRUPTED' "
+                    "WHERE analysis_status = 'processing'"
+                )
+            )
+            await session.commit()
+            print(
+                "INTERRUPTED ANALYSES RECOVERED:",
+                result.rowcount
+            )
+    except Exception as exc:
+        print(
+            "ANALYSIS RECOVERY ERROR:",
+            type(exc).__name__
+        )
+
     await telephony_runtime.start()
     try:
         yield

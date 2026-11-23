@@ -1,0 +1,146 @@
+From 904c0a898a937093e7e4a836e56bf45cddef97fe Mon Sep 17 00:00:00 2001
+From: Codex <codex@localhost>
+Date: Mon, 23 Nov 2026 10:31:54 +0330
+Subject: [PATCH] Add read-only Grandstream API readiness check for issue 16
+
+---
+ backend/GRANDSTREAM_UCM6202_FA.md   | 12 ++++++
+ backend/app/cli/check_ucm.py        | 60 +++++++++++++++++++++++++++++
+ backend/tests/test_ucm_readiness.py | 38 ++++++++++++++++++
+ 3 files changed, 110 insertions(+)
+ create mode 100644 backend/app/cli/check_ucm.py
+ create mode 100644 backend/tests/test_ucm_readiness.py
+
+diff --git a/backend/GRANDSTREAM_UCM6202_FA.md b/backend/GRANDSTREAM_UCM6202_FA.md
+index b4b5a6d..29ce2cc 100644
+--- a/backend/GRANDSTREAM_UCM6202_FA.md
++++ b/backend/GRANDSTREAM_UCM6202_FA.md
+@@ -88,3 +88,15 @@ UCM_TCP_HOST_PORT=10000
+ - ساختار CDR و نام فیلدها ممکن است با firmware یا تنظیمات PBX تفاوت داشته باشد؛ نمونه CDR واقعی باید بعد از راه‌اندازی تست شود.
+ - poller و listener داخل lifespan برنامه اجرا می‌شوند؛ در اجرای چند worker چند نمونه poller/listener ایجاد می‌شود. این نسخه باید با یک worker API اجرا شود یا در مرحله بعد worker به سرویس مستقل منتقل شود.
+ - ضبط مکالمه داده حساس است؛ HTTPS، نقش‌های دسترسی، محدودیت شبکه و سیاست نگهداری فایل‌ها باید رعایت شود.
++
++## بررسی اتصال از سرور فروش‌یار (Issue #16)
++
++پس از نصب نسخه حاوی این فرمان و تنظیم حساب API، روی سرور و از مسیر پروژه اجرا کنید:
++
++```sh
++docker compose exec -T api python -m app.cli.check_ucm
++```
++
++فرمان با تنظیمات همان کانتینر وارد API می‌شود و تعداد کانال‌های متصل و در انتظار اتصال را می‌خواند. صفر بودن تعداد کانال‌ها هنگام نبود تماس طبیعی است. خروجی فقط نام عملیات و تعداد یا نوع خطا را نشان می‌دهد. آزمون یک‌بار اجرا می‌شود و تماس یا همگام‌سازی CDR را آغاز نمی‌کند.
++
++کد خروج صفر یعنی هر دو پاسخ کانال معتبر بودند. کد ۱ یعنی درخواست یا قالب پاسخ ناموفق بود. کد ۲ یعنی تنظیمات برنامه یا اتصال برای اجرای آزمون آماده نیست. برای ثبت نتیجه در Issue، زمان آزمون، نسخه دستگاه، کد خروج و دو خط وضعیت موجود را ثبت کنید. تطبیق شماره با مشتری، ثبت CDR و تماس واقعی هرکدام به آزمون جداگانه روی دستگاه نیاز دارند.
+diff --git a/backend/app/cli/check_ucm.py b/backend/app/cli/check_ucm.py
+new file mode 100644
+index 0000000..71f5a8d
+--- /dev/null
++++ b/backend/app/cli/check_ucm.py
+@@ -0,0 +1,60 @@
++"""Check the configured UCM API once without starting background workers."""
++
++import asyncio
++
++import httpx
++from pydantic import ValidationError
++
++
++async def check(runtime) -> int:
++    if not runtime.api_configured:
++        print("SKIP: UCM integration is disabled or API settings are incomplete.")
++        return 2
++
++    for action in ("listUnBridgedChannels", "listBridgedChannels"):
++        try:
++            result = await runtime.api_action(action)
++        except httpx.HTTPStatusError as error:
++            print(f"FAIL: {action}: HTTP {error.response.status_code}")
++            return 1
++        except (httpx.HTTPError, RuntimeError, ValueError, TypeError) as error:
++            print(f"FAIL: {action}: {type(error).__name__}")
++            return 1
++
++        payload = result.get("response")
++        channels = payload.get("channel") if isinstance(payload, dict) else None
++        if isinstance(channels, dict):
++            channels = [channels]
++        if not isinstance(channels, list) or not all(isinstance(c, dict) for c in channels):
++            print(f"FAIL: {action}: unexpected channel response")
++            return 1
++        print(f"OK: {action}: {len(channels)} channels")
++    return 0
++
++
++async def main() -> int:
++    try:
++        from app.core.config import settings
++    except ValidationError:
++        print("FAIL: invalid application settings")
++        return 2
++
++    from sqlalchemy.ext.asyncio import async_sessionmaker
++
++    from app.services.telephony.grandstream import GrandstreamTelephonyRuntime
++
++    runtime = GrandstreamTelephonyRuntime(settings, async_sessionmaker())
++    if not runtime.api_configured:
++        return await check(runtime)
++    try:
++        async with httpx.AsyncClient(
++            verify=settings.ucm_verify_tls, timeout=httpx.Timeout(20.0, connect=5.0)
++        ) as runtime.http:
++            return await check(runtime)
++    except (ImportError, OSError, ValueError):
++        print("FAIL: invalid HTTP client configuration; check TLS and proxy settings")
++        return 2
++
++
++if __name__ == "__main__":
++    raise SystemExit(asyncio.run(main()))
+diff --git a/backend/tests/test_ucm_readiness.py b/backend/tests/test_ucm_readiness.py
+new file mode 100644
+index 0000000..71abbf1
+--- /dev/null
++++ b/backend/tests/test_ucm_readiness.py
+@@ -0,0 +1,38 @@
++import asyncio
++from unittest.mock import AsyncMock, Mock
++
++import httpx
++import pytest
++
++from app.cli.check_ucm import check
++
++
++def test_disabled_probe_makes_no_requests():
++    runtime = Mock(api_configured=False, api_action=AsyncMock())
++    assert asyncio.run(check(runtime)) == 2
++    runtime.api_action.assert_not_awaited()
++
++
++def test_probe_reports_only_counts(capsys):
++    action = AsyncMock(side_effect=[
++        {"response": {"channel": {"callerid": "private-number"}}},
++        {"response": {"channel": []}},
++    ])
++    assert asyncio.run(check(Mock(api_configured=True, api_action=action))) == 0
++    assert [call.args for call in action.await_args_list] == [
++        ("listUnBridgedChannels",), ("listBridgedChannels",)
++    ]
++    assert capsys.readouterr().out.splitlines() == [
++        "OK: listUnBridgedChannels: 1 channels", "OK: listBridgedChannels: 0 channels"
++    ]
++
++
++@pytest.mark.parametrize("response", [
++    {}, {"response": {"channel": "private-number"}},
++    httpx.ConnectError("private-host"), RuntimeError("private-token"),
++])
++def test_probe_fails_without_exposing_response(response, capsys):
++    action = AsyncMock(side_effect=[response])
++    assert asyncio.run(check(Mock(api_configured=True, api_action=action))) == 1
++    assert "private" not in capsys.readouterr().out
++    assert action.await_count == 1
+-- 
+2.56.1
+
